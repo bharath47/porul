@@ -1,6 +1,6 @@
 // app.js — application controller: state, views, filters, import, persistence.
 import { $, $$, el, money, toast, setCurrency, normDesc, ym, monthLabel, parseDate, download } from './util.js';
-import { DEFAULT_CATEGORIES, DEFAULT_RULES, SCHEMA_VERSION, RULES_VERSION } from './config.js';
+import { DEFAULT_CATEGORIES, DEFAULT_RULES, SCHEMA_VERSION, RULES_VERSION, UNCATEGORISED, CATEGORY_ALIASES } from './config.js';
 import { parseFile } from './parsers.js';
 import { categorize, markDuplicates, uncategorisedGroups, dupeKey } from './categorize.js';
 import { renderDashboard, renderPeriodChart } from './dashboard.js';
@@ -73,12 +73,29 @@ function hydrate(data) {
   if (Array.isArray(data.transactions)) state.transactions = data.transactions;
   if (Array.isArray(data.files)) state.files = data.files;
 
-  // When the built-in rule set is upgraded, re-seed rules and merge in any new default
-  // categories. User manual assignments (state.manual) and custom categories are kept.
+  // On a taxonomy/rules upgrade, re-seed built-in rules & categories and migrate saved
+  // leaf names to the new taxonomy. Manual assignments and custom categories are kept.
   const outdated = (data.rulesVersion || 0) < RULES_VERSION;
-  if (outdated) state.rules = [...DEFAULT_RULES];
-  else if (Array.isArray(data.rules) && data.rules.length) state.rules = data.rules;
-  for (const c of DEFAULT_CATEGORIES) if (!state.categories.some(x => x.name === c.name)) state.categories.push(c);
+  if (outdated) {
+    state.rules = [...DEFAULT_RULES];
+    state.categories = [...DEFAULT_CATEGORIES];
+    for (const k of Object.keys(state.manual)) {
+      const v = state.manual[k]; if (CATEGORY_ALIASES[v]) state.manual[k] = CATEGORY_ALIASES[v];
+    }
+    if (Array.isArray(state.settings.excludeCats))
+      state.settings.excludeCats = state.settings.excludeCats.map(c => CATEGORY_ALIASES[c] || c);
+    // Preserve any user-added categories the migration doesn't cover.
+    const known = new Set(state.categories.map(c => c.name));
+    if (Array.isArray(data.categories)) for (const c of data.categories) {
+      if (!known.has(c.name) && !CATEGORY_ALIASES[c.name]) {
+        state.categories.push({ name: c.name, category: c.category || 'Custom', group: c.group || 'Custom' });
+        known.add(c.name);
+      }
+    }
+  } else {
+    if (Array.isArray(data.rules) && data.rules.length) state.rules = data.rules;
+    for (const c of DEFAULT_CATEGORIES) if (!state.categories.some(x => x.name === c.name)) state.categories.push(c);
+  }
 
   // If older data used an include list, convert it back to an exclude list.
   if (!Array.isArray(state.settings.excludeCats)) {
@@ -122,6 +139,8 @@ function wireEvents() {
 
   $('#addRule').addEventListener('click', addRule);
   $('#addCat').addEventListener('click', addCategory);
+  $('#nlApply').addEventListener('click', applyNlRule);
+  $('#nlRule').addEventListener('keydown', (e) => { if (e.key === 'Enter') applyNlRule(); });
 
   $('#darkToggle').addEventListener('change', (e) => { state.settings.dark = e.target.checked; applyTheme(); });
   $('#currencySym').addEventListener('change', (e) => { state.settings.currency = e.target.value || '$'; setCurrency(state.settings.currency); render(); });
@@ -339,15 +358,14 @@ function renderTransactions() {
   renderPeriodChart('chartTxTime', rows, state.filters.txGran);
 
   const shown = rows.slice(0, 600);
-  const opts = state.categories.map(c => c.name);
   const table = el('table');
   table.innerHTML = `<thead><tr><th>Date</th><th>Description</th><th>Bank / Account</th>
     <th>Category</th><th class="num">Amount</th></tr></thead>`;
   const tbody = el('tbody');
   for (const t of shown) {
     const tr = el('tr', { class: t.isDuplicate ? 'dupe-row' : '' });
-    const catSel = el('select', { class: 'tx-cat-select' },
-      ...opts.map(o => el('option', { value: o, selected: o === t.category ? '' : null }, o)));
+    const catSel = el('select', { class: 'tx-cat-select' });
+    catSel.appendChild(buildCatOptions(t.category, { includeUncat: true }));
     catSel.value = t.category;
     catSel.addEventListener('change', () => setManualCategory(t.description, catSel.value));
     tr.append(
@@ -390,36 +408,107 @@ function renderTxMetrics(rows) {
 
 // ============================ categorisation view ============================
 function renderCategories() {
-  // Uncategorised groups
   const groups = uncategorisedGroups(state.transactions);
   $('#uncatCount').textContent = groups.length;
   const list = $('#uncatList'); list.innerHTML = '';
   if (!groups.length) list.innerHTML = '<div class="empty">Everything is categorised. 🎉</div>';
   for (const g of groups.slice(0, 100)) {
-    const sel = el('select', { class: 'tx-cat-select' },
-      el('option', { value: '' }, 'Assign…'),
-      ...state.categories.filter(c => c.name !== 'Uncategorised').map(c => el('option', { value: c.name }, c.name)));
+    const sel = el('select', { class: 'tx-cat-select' });
+    sel.appendChild(buildCatOptions('', { blank: true, blankLabel: 'Assign…' }));
     sel.addEventListener('change', () => { if (sel.value) setManualCategory(g.sample, sel.value); });
     list.appendChild(el('div', { class: 'uncat-item' },
       el('div', { class: 'desc' }, el('b', {}, g.sample), el('small', {}, `${g.count}× · ${money(g.total)}`)),
       sel));
   }
-  // Rules
+  // Keyword rules
   fillCatSelect($('#ruleCategory'));
   const rl = $('#ruleList'); rl.innerHTML = '';
   state.rules.forEach((r, i) => rl.appendChild(el('div', { class: 'rule-item' },
     el('span', { class: 'kw' }, r.kw), el('span', { class: 'arr' }, '→'), el('span', {}, r.cat),
     el('button', { class: 'btn ghost', onclick: () => { state.rules.splice(i, 1); recompute(); render(); persistIfUser(); } }, '✕'))));
-  // Category chips
-  const chips = $('#catChips'); chips.innerHTML = '';
+  // Category tree: Group → Category → Subcategory chips
+  const tree = $('#catChips'); tree.innerHTML = '';
+  const byGroup = new Map();
   for (const c of state.categories) {
-    chips.appendChild(el('span', { class: 'chip' }, `${c.name} `, el('span', { class: 'grp' }, c.group || ''),
-      c.name !== 'Uncategorised' ? el('span', { class: 'x', title: 'Remove', onclick: () => removeCategory(c.name) }, ' ✕') : ''));
+    const g = c.group || 'Custom';
+    if (!byGroup.has(g)) byGroup.set(g, new Map());
+    const cat = c.category || 'Custom';
+    const cm = byGroup.get(g);
+    if (!cm.has(cat)) cm.set(cat, []);
+    cm.get(cat).push(c.name);
+  }
+  for (const [group, cm] of byGroup) {
+    const gEl = el('div', { class: 'cat-group' }, el('div', { class: 'cat-group-h' }, group));
+    for (const [cat, subs] of cm) {
+      const tray = el('span', { class: 'chip-tray' });
+      for (const name of subs) tray.appendChild(el('span', { class: 'chip' }, name,
+        name !== UNCATEGORISED ? el('span', { class: 'x', title: 'Remove', onclick: () => removeCategory(name) }, ' ✕') : ''));
+      gEl.appendChild(el('div', { class: 'cat-cat' }, el('span', { class: 'cat-cat-h' }, cat), tray));
+    }
+    tree.appendChild(gEl);
   }
 }
 
+// Build grouped <optgroup> options for a category <select>.
+function buildCatOptions(selectedValue, { blank = false, blankLabel = '', includeUncat = false } = {}) {
+  const frag = document.createDocumentFragment();
+  if (blank) frag.appendChild(el('option', { value: '' }, blankLabel));
+  if (includeUncat) frag.appendChild(el('option', { value: UNCATEGORISED, selected: selectedValue === UNCATEGORISED ? '' : null }, UNCATEGORISED));
+  const byKey = new Map();
+  for (const c of state.categories) {
+    if (c.name === UNCATEGORISED) continue;
+    const key = `${c.group || 'Custom'} ▸ ${c.category || 'Custom'}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(c.name);
+  }
+  for (const [label, names] of byKey) {
+    const og = el('optgroup', { label });
+    for (const n of names) og.appendChild(el('option', { value: n, selected: n === selectedValue ? '' : null }, n));
+    frag.appendChild(og);
+  }
+  return frag;
+}
+
 function fillCatSelect(sel) {
-  sel.innerHTML = state.categories.filter(c => c.name !== 'Uncategorised').map(c => `<option>${c.name}</option>`).join('');
+  const cur = sel.value; sel.innerHTML = '';
+  sel.appendChild(buildCatOptions(cur));
+  if (cur) sel.value = cur;
+}
+
+// Natural-language rule, e.g. "Spice Rack is sub category - Imported Foods".
+function applyNlRule() {
+  const text = $('#nlRule').value.trim(); const hint = $('#nlHint');
+  if (!text) return;
+  const parsed = parseNlRule(text);
+  if (!parsed) { hint.textContent = 'Try: "<merchant> is <subcategory>" — e.g. "Spice Rack is Imported Foods".'; return; }
+  const { kw, target } = parsed;
+  let sub = matchSubcategory(target);
+  let created = false;
+  if (!sub) { sub = target.replace(/\b\w/g, c => c.toUpperCase()); state.categories.push({ name: sub, category: 'Custom', group: 'Custom' }); created = true; }
+  state.rules.unshift({ kw: kw.toUpperCase(), cat: sub });
+  $('#nlRule').value = '';
+  recompute(); refreshFilterOptions(); render(); persistIfUser();
+  hint.textContent = `Added: “${kw}” → ${sub}${created ? ' (new subcategory created)' : ''}`;
+  toast('Rule added', 'ok');
+}
+function parseNlRule(text) {
+  let m = text.match(/^\s*categoriz?e\s+(.+?)\s+(?:as|under|to)\s+(.+?)\s*$/i);
+  if (!m) m = text.match(/^\s*(.+?)\s+(?:is|=>|->|=|belongs to|goes (?:in|to|under)|as)\s+(?:an?\s+)?(?:sub[\s-]?categor(?:y|ies)|categor(?:y|ies))?\s*[-:]?\s*(.+?)\s*$/i);
+  if (!m) return null;
+  const kw = m[1].trim().replace(/^["']|["']$/g, '');
+  const target = m[2].trim().replace(/^["']|["']$/g, '');
+  return (kw && target) ? { kw, target } : null;
+}
+function matchSubcategory(q) {
+  const ql = q.toLowerCase().trim();
+  const names = state.categories.map(c => c.name);
+  let hit = names.find(n => n.toLowerCase() === ql);
+  if (hit) return hit;
+  hit = names.find(n => n.toLowerCase().includes(ql) || ql.includes(n.toLowerCase()));
+  if (hit) return hit;
+  const qt = ql.split(/[^a-z0-9]+/).filter(Boolean);
+  hit = names.find(n => { const nt = n.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); return qt.length && qt.every(t => nt.includes(t)); });
+  return hit || null;
 }
 
 function addRule() {
@@ -432,12 +521,15 @@ function addRule() {
 }
 
 function addCategory() {
-  const name = $('#newCatName').value.trim(); const group = $('#newCatGroup').value.trim();
-  if (!name) return toast('Enter a category name', 'err');
-  if (state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) return toast('Category exists', 'err');
-  state.categories.push({ name, group: group || 'Custom' });
-  $('#newCatName').value = ''; $('#newCatGroup').value = '';
+  const name = $('#newCatName').value.trim();
+  const category = $('#newCatCategory').value.trim() || 'Custom';
+  const group = $('#newCatGroup').value.trim() || 'Custom';
+  if (!name) return toast('Enter a subcategory name', 'err');
+  if (state.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) return toast('Subcategory exists', 'err');
+  state.categories.push({ name, category, group });
+  $('#newCatName').value = ''; $('#newCatCategory').value = ''; $('#newCatGroup').value = '';
   refreshFilterOptions(); render(); persistIfUser();
+  toast('Subcategory added', 'ok');
 }
 
 function removeCategory(name) {

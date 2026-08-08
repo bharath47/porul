@@ -1,5 +1,6 @@
 // categorize.js — rule engine + de-duplication over normalised transactions.
 import { normDesc, merchantOf, hash } from './util.js';
+import { UNCATEGORISED } from './config.js';
 
 // Assign categories in place. `rules`=[{kw,cat}], `manual`={ [normDesc]: cat }.
 export function categorize(transactions, rules, manual) {
@@ -10,7 +11,7 @@ export function categorize(transactions, rules, manual) {
     const desc = ' ' + (t.description || '').toUpperCase() + ' ';
     let hit = null;
     for (const r of upperRules) { if (desc.includes(r.kw)) { hit = r.cat; break; } }
-    t.category = hit || 'Uncategorised';
+    t.category = hit || UNCATEGORISED;
     t.categorySource = hit ? 'rule' : 'uncategorised';
   }
   return transactions;
@@ -43,7 +44,7 @@ export function markDuplicates(transactions) {
 export function uncategorisedGroups(transactions) {
   const map = new Map();
   for (const t of transactions) {
-    if (t.isDuplicate || t.category !== 'Uncategorised') continue;
+    if (t.isDuplicate || t.category !== UNCATEGORISED) continue;
     const nd = normDesc(t.description);
     if (!map.has(nd)) map.set(nd, { nd, sample: t.description, count: 0, total: 0, merchant: t.merchant });
     const g = map.get(nd); g.count++; g.total += Math.abs(t.amount);

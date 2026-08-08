@@ -162,8 +162,16 @@
             <div id="uncatList" class="uncat-list"></div>
           </div>
           <div class="card">
-            <div class="card-head"><h3>Category rules</h3></div>
-            <p class="muted">When a description <em>contains</em> a keyword, it maps to a category. First match wins.</p>
+            <div class="card-head"><h3>Natural-language setup</h3></div>
+            <p class="muted">Type a sentence — e.g. <em>“Spice Rack is sub category - Imported Foods”</em> or <em>“WAITOMO as Fuel / EV Charging”</em>. If the subcategory doesn't exist yet, it's created.</p>
+            <div class="rule-add">
+              <input id="nlRule" placeholder="e.g. Spice Rack is sub category - Imported Foods" />
+              <button id="nlApply" class="btn primary">Apply</button>
+            </div>
+            <div id="nlHint" class="muted" style="margin-bottom:14px"></div>
+
+            <div class="card-head"><h3>Keyword rules</h3></div>
+            <p class="muted">When a description <em>contains</em> a keyword, it maps to a subcategory. First match wins.</p>
             <div class="rule-add">
               <input id="ruleKeyword" placeholder="keyword (e.g. WAITOMO)" />
               <select id="ruleCategory"></select>
@@ -171,13 +179,14 @@
             </div>
             <div id="ruleList" class="rule-list"></div>
             <hr />
-            <div class="card-head"><h3>Categories</h3></div>
+            <div class="card-head"><h3>Categories &amp; subcategories</h3></div>
             <div class="cat-add">
-              <input id="newCatName" placeholder="New category name" />
-              <input id="newCatGroup" placeholder="Group (optional)" />
-              <button id="addCat" class="btn ghost">Add category</button>
+              <input id="newCatName" placeholder="New subcategory" />
+              <input id="newCatCategory" placeholder="Category" />
+              <input id="newCatGroup" placeholder="Group" />
+              <button id="addCat" class="btn ghost">Add</button>
             </div>
-            <div id="catChips" class="chip-tray"></div>
+            <div id="catChips" class="cat-tree"></div>
           </div>
         </div>
       </section>

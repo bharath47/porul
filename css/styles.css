@@ -192,6 +192,13 @@ input:focus, select:focus { border-color: var(--gold); }
 .rule-item button { margin-left: auto; }
 .pill { background: var(--warn); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
 
+/* Category taxonomy tree (Group → Category → Subcategory) */
+.cat-tree { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow: auto; }
+.cat-group-h { font-size: 12px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+[data-theme="dark"] .cat-group-h { color: var(--gold-soft); }
+.cat-cat { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); margin-bottom: 4px; }
+.cat-cat-h { font-size: 12px; font-weight: 600; color: var(--ink-soft); min-width: 130px; }
+
 /* ---------- Chips ---------- */
 .chip-tray { display: flex; flex-wrap: wrap; gap: 7px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
