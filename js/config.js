@@ -26,6 +26,7 @@ export const DEFAULT_CATEGORIES = [
   { name: 'Income',              group: 'Income' },
   { name: 'Fees & Interest',     group: 'Banking' },
   { name: 'Cash',                group: 'Banking' },
+  { name: 'Work',                group: 'Work' },
   { name: 'Other',               group: 'Other' },
   { name: 'Uncategorised',       group: 'Other' },
 ];
@@ -139,6 +140,7 @@ export const DEFAULT_RULES = [
   { kw: 'DENTAL',            cat: 'Health' },
   { kw: 'DENTIST',           cat: 'Health' },
   { kw: 'MATT BARKER',       cat: 'Health' },
+  { kw: 'SOUTHERN CROSS',    cat: 'Health' },
   { kw: 'PHYSIO',            cat: 'Health' },
   // Shopping
   { kw: 'BUNNINGS',          cat: 'Shopping' },
@@ -193,4 +195,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
-export const RULES_VERSION = 3;
+export const RULES_VERSION = 4;

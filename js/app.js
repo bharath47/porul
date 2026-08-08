@@ -329,7 +329,10 @@ function renderTransactions() {
     catSel.addEventListener('change', () => setManualCategory(t.description, catSel.value));
     tr.append(
       el('td', {}, t.date || '—'),
-      el('td', {}, el('div', {}, t.description || '—'), el('small', { class: 'muted' }, t.merchant || '')),
+      el('td', {},
+        el('div', {}, (t.description || '—'), ' ',
+          el('span', { class: 'info-ic', title: `Source file: ${t.sourceFile || 'unknown'}` }, 'ⓘ')),
+        el('small', { class: 'muted' }, t.merchant || '')),
       el('td', {}, `${t.bank}`, el('br'), el('small', { class: 'muted' }, String(t.account))),
       el('td', {}, catSel),
       el('td', { class: 'num ' + (t.amount < 0 ? 'amt-out' : 'amt-in') }, money(t.amount, { sign: true })),

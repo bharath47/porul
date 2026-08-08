@@ -169,6 +169,8 @@ input:focus, select:focus { border-color: var(--gold); }
 .tx-table { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); overflow: hidden; }
 .tx-cat-select { padding: 4px 6px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; background: var(--card); color: var(--ink); }
+.info-ic { color: var(--slate); font-size: 11px; cursor: help; opacity: .55; vertical-align: middle; }
+.info-ic:hover { opacity: 1; color: var(--gold); }
 .tag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
   background: rgba(53,80,107,.1); color: var(--slate); }
 [data-theme="dark"] .tag { background: rgba(200,164,92,.15); color: var(--gold-soft); }
