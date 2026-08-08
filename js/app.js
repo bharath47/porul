@@ -273,6 +273,21 @@ function activeRows() {
 }
 
 // ============================ filters ============================
+// Transaction table sorting
+const txSort = { key: 'date', dir: 'desc' };
+function setTxSort(key) {
+  if (txSort.key === key) txSort.dir = txSort.dir === 'asc' ? 'desc' : 'asc';
+  else { txSort.key = key; txSort.dir = (key === 'amount' || key === 'date') ? 'desc' : 'asc'; }
+  renderTransactions();
+}
+function sortTxRows(rows) {
+  const s = txSort.dir === 'asc' ? 1 : -1;
+  const val = (t) => txSort.key === 'amount' ? t.amount
+    : txSort.key === 'bank' ? `${t.bank} ${t.account}`
+    : txSort.key === 'date' ? (t.date || '') : (t[txSort.key] || '');
+  return rows.sort((a, b) => { const av = val(a), bv = val(b); return (typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv))) * s; });
+}
+
 function refreshFilterOptions() {
   ensureExclude();
   const banks = [...new Set(state.transactions.map(t => t.bank))].sort();
@@ -403,15 +418,21 @@ function renderTransactions() {
     if (catF && t.category !== catF) return false;
     if (q && !(`${t.description} ${t.merchant} ${t.category} ${t.bank}`.toLowerCase().includes(q))) return false;
     return true;
-  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  });
+  sortTxRows(rows);
 
   renderTxMetrics(rows);
   renderPeriodChart('chartTxTime', rows, state.filters.txGran);
 
   const shown = rows.slice(0, 600);
   const table = el('table');
-  table.innerHTML = `<thead><tr><th>Date</th><th>Description</th><th>Bank / Account</th>
-    <th>Category</th><th class="num">Amount</th></tr></thead>`;
+  const cols = [['date', 'Date'], ['description', 'Description'], ['bank', 'Bank / Account'], ['category', 'Category'], ['amount', 'Amount']];
+  const thead = el('thead'); const htr = el('tr');
+  for (const [key, label] of cols) {
+    const arrow = txSort.key === key ? (txSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    htr.appendChild(el('th', { class: 'sortable' + (key === 'amount' ? ' num' : ''), onclick: () => setTxSort(key) }, label + arrow));
+  }
+  thead.appendChild(htr); table.appendChild(thead);
   const tbody = el('tbody');
   for (const t of shown) {
     const tr = el('tr', { class: t.isDuplicate ? 'dupe-row' : '' });
@@ -526,41 +547,68 @@ function fillCatSelect(sel) {
   if (cur) sel.value = cur;
 }
 
-// Natural-language rule, e.g. "Spice Rack is sub category - Imported Foods".
+// Natural-language rule. Accepts e.g.:
+//  "Spice Rack is sub category - Imported Foods"
+//  "WAITOMO as Fuel / EV Charging"
+//  'Description contains "LOAN" into a Category "Home Loan" under Group "Shelter & Rent"'
 function applyNlRule() {
   const text = $('#nlRule').value.trim(); const hint = $('#nlHint');
   if (!text) return;
   const parsed = parseNlRule(text);
-  if (!parsed) { hint.textContent = 'Try: "<merchant> is <subcategory>" — e.g. "Spice Rack is Imported Foods".'; return; }
-  const { kw, target } = parsed;
+  if (!parsed) { hint.textContent = 'Try: "<merchant> is <subcategory>", or \'Description contains "X" into category "Y" under group "Z"\'.'; return; }
+  const { kw, target, parent } = parsed;
+
+  // Resolve where to place the subcategory (parent category + group).
+  let category = null, group = null;
+  if (parent) {
+    const catNames = [...new Set(state.categories.map(c => c.category || 'Custom'))];
+    const grpNames = [...new Set(state.categories.map(c => c.group || 'Custom'))];
+    const mc = matchInList(parent, catNames);
+    if (mc) { category = mc; group = (state.categories.find(c => (c.category || 'Custom') === mc) || {}).group || 'Custom'; }
+    else { const mg = matchInList(parent, grpNames); if (mg) { group = mg; category = titleCase(target); } }
+    if (!category && !group) { category = group = titleCase(parent); }
+  }
+
   let sub = matchSubcategory(target);
   let created = false;
-  if (!sub) { sub = target.replace(/\b\w/g, c => c.toUpperCase()); state.categories.push({ name: sub, category: 'Custom', group: 'Custom' }); created = true; }
+  if (!sub) {
+    sub = titleCase(target);
+    state.categories.push({ name: sub, category: category || 'Custom', group: group || 'Custom' });
+    created = true;
+  } else if (parent && (category || group)) {           // move existing subcategory under the given parent
+    const c = state.categories.find(x => x.name === sub);
+    if (c) { if (category) c.category = category; if (group) c.group = group; }
+  }
   state.rules.unshift({ kw: kw.toUpperCase(), cat: sub });
   $('#nlRule').value = '';
   recompute(); refreshFilterOptions(); render(); persistIfUser();
-  hint.textContent = `Added: “${kw}” → ${sub}${created ? ' (new subcategory created)' : ''}`;
+  const where = parent ? ` under ${category || group}` : '';
+  hint.textContent = `Added: “${kw}” → ${sub}${where}${created ? ' (new)' : ''}`;
   toast('Rule added', 'ok');
 }
+const titleCase = (s) => s.trim().replace(/\b\w/g, c => c.toUpperCase());
 function parseNlRule(text) {
-  let m = text.match(/^\s*categoriz?e\s+(.+?)\s+(?:as|under|to)\s+(.+?)\s*$/i);
-  if (!m) m = text.match(/^\s*(.+?)\s+(?:is|=>|->|=|belongs to|goes (?:in|to|under)|as)\s+(?:an?\s+)?(?:sub[\s-]?categor(?:y|ies)|categor(?:y|ies))?\s*[-:]?\s*(.+?)\s*$/i);
+  let body = text.trim(), parent = null;
+  const pm = body.match(/\s+(?:under|within|in|into)\s+(?:the\s+)?(?:group|categor(?:y|ies)|sub[\s-]?categor(?:y|ies))\s+["']?([^"']+?)["']?\s*$/i);
+  if (pm) { parent = pm[1].trim(); body = body.slice(0, pm.index).trim(); }
+  let m = body.match(/^\s*categori[sz]?e\s+["']?(.+?)["']?\s+(?:as|under|to|into)\s+(?:an?\s+)?(?:sub[\s-]?categor(?:y|ies)|categor(?:y|ies))?\s*[-:]?\s*["']?(.+?)["']?\s*$/i);
+  if (!m) m = body.match(/^\s*(?:description|desc|txn|transaction|it)?\s*(?:contains|containing|has|includes|with)\s+["']?(.+?)["']?\s+(?:into|as|is|to|=>|->|=|maps? to|belongs to)\s+(?:an?\s+)?(?:sub[\s-]?categor(?:y|ies)|categor(?:y|ies))?\s*[-:]?\s*["']?(.+?)["']?\s*$/i);
+  if (!m) m = body.match(/^\s*["']?(.+?)["']?\s+(?:is|=>|->|=|belongs to|goes (?:in|to|under)|as|into|maps? to)\s+(?:an?\s+)?(?:sub[\s-]?categor(?:y|ies)|categor(?:y|ies))?\s*[-:]?\s*["']?(.+?)["']?\s*$/i);
   if (!m) return null;
   const kw = m[1].trim().replace(/^["']|["']$/g, '');
   const target = m[2].trim().replace(/^["']|["']$/g, '');
-  return (kw && target) ? { kw, target } : null;
+  return (kw && target) ? { kw, target, parent } : null;
 }
-function matchSubcategory(q) {
-  const ql = q.toLowerCase().trim();
-  const names = state.categories.map(c => c.name);
-  let hit = names.find(n => n.toLowerCase() === ql);
-  if (hit) return hit;
-  hit = names.find(n => n.toLowerCase().includes(ql) || ql.includes(n.toLowerCase()));
-  if (hit) return hit;
-  const qt = ql.split(/[^a-z0-9]+/).filter(Boolean);
-  hit = names.find(n => { const nt = n.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean); return qt.length && qt.every(t => nt.includes(t)); });
-  return hit || null;
+const _norm = (s) => s.toLowerCase().replace(/&/g, ' and ').replace(/\s+/g, ' ').trim();
+const _tokens = (s) => _norm(s).split(/[^a-z0-9]+/).filter(t => t && !['and', 'the', 'of', 'a', 'to'].includes(t));
+function matchInList(q, list) {
+  const qn = _norm(q);
+  let hit = list.find(n => _norm(n) === qn); if (hit) return hit;
+  hit = list.find(n => { const nn = _norm(n); return nn.includes(qn) || qn.includes(nn); }); if (hit) return hit;
+  const qt = _tokens(q);
+  return list.find(n => { const nt = _tokens(n); return qt.length && qt.every(t => nt.includes(t)); }) || null;
 }
+const matchSubcategory = (q) => matchInList(q, state.categories.map(c => c.name));
 
 function addRule() {
   const kw = $('#ruleKeyword').value.trim(); const cat = $('#ruleCategory').value;

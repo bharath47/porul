@@ -161,6 +161,8 @@ input:focus, select:focus { border-color: var(--gold); }
   text-transform: uppercase; letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .mini-table td, .tx-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .tx-table tr:hover td { background: rgba(200,164,92,.05); }
+.tx-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.tx-table th.sortable:hover { color: var(--gold); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .amt-out { color: var(--bad); } .amt-in { color: var(--good); }
 .dupe-row td { opacity: .5; text-decoration: line-through; }
