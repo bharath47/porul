@@ -14,7 +14,7 @@ const state = {
   rules: [...DEFAULT_RULES],
   manual: {},
   settings: { dark: false, currency: '$', excludeCats: null },
-  filters: { banks: [], accounts: [], from: '', to: '', type: '', trendGran: 'month', txGran: 'month' },
+  filters: { banks: [], accounts: [], from: '', to: '', type: '', parentCat: '', trendGran: 'month', txGran: 'month' },
   view: 'dashboard',
 };
 
@@ -124,7 +124,7 @@ function wireEvents() {
   $('#saveBtn2').addEventListener('click', persist);
   $('#resetFilters').addEventListener('click', resetFilters);
 
-  ['fltAccount','fltFrom','fltTo','fltType'].forEach(id =>
+  ['fltAccount','fltFrom','fltTo','fltType','fltParentCat'].forEach(id =>
     $('#' + id).addEventListener('change', () => { readFilters(); render(); }));
   $('#fltBank').addEventListener('change', onBankChange);
   $('#catSelectAll').addEventListener('click', () => { state.settings.excludeCats = []; renderCatChips(); render(); });
@@ -221,9 +221,18 @@ function recompute() {
   markDuplicates(state.transactions);
 }
 
+// Map subcategory (leaf) → parent category, and list parent categories present in data.
+const subParentMap = () => new Map(state.categories.map(c => [c.name, c.category || 'Custom']));
+function availableParentCategories() {
+  const p = subParentMap();
+  const present = new Set(state.transactions.filter(t => !t.isDuplicate).map(t => p.get(t.category) || 'Custom'));
+  return [...new Set(state.categories.map(c => c.category || 'Custom'))].filter(c => present.has(c));
+}
+
 function activeRows() {
   const f = state.filters;
   const banks = new Set(f.banks), accts = new Set(f.accounts), excl = new Set(state.settings.excludeCats);
+  const pmap = f.parentCat ? subParentMap() : null;
   return state.transactions.filter(t => {
     if (t.isDuplicate) return false;
     if (banks.size && !banks.has(t.bank)) return false;
@@ -231,6 +240,7 @@ function activeRows() {
     if (f.from && ym(t.date) < f.from) return false;
     if (f.to && ym(t.date) > f.to) return false;
     if (excl.has(t.category)) return false;
+    if (pmap && (pmap.get(t.category) || 'Custom') !== f.parentCat) return false;
     if (f.type === 'debit' && t.amount >= 0) return false;
     if (f.type === 'credit' && t.amount < 0) return false;
     return true;
@@ -251,9 +261,14 @@ function refreshFilterOptions() {
     $('#fltFrom').max = $('#fltTo').max = dates.at(-1);
   }
   renderCatChips();
-  // tx category dropdown — only categories present in the data
+  // Parent-category dropdown — only parent categories present in the data
+  const psel = $('#fltParentCat'); const pcur = psel.value;
+  psel.innerHTML = '<option value="">All categories</option>' +
+    availableParentCategories().map(c => `<option>${c}</option>`).join('');
+  psel.value = pcur;
+  // tx subcategory dropdown — only subcategories present in the data
   const sel = $('#txCatFilter'); const cur = sel.value;
-  sel.innerHTML = '<option value="">All categories</option>' +
+  sel.innerHTML = '<option value="">All subcategories</option>' +
     availableCategories().map(n => `<option>${n}</option>`).join('');
   sel.value = cur;
 }
@@ -269,6 +284,7 @@ function readFilters() {
   state.filters.from = $('#fltFrom').value;
   state.filters.to = $('#fltTo').value;
   state.filters.type = $('#fltType').value;
+  state.filters.parentCat = $('#fltParentCat').value;
 }
 
 // Selecting bank(s) narrows the account list to those banks.
@@ -287,9 +303,9 @@ function segClick(sel, e, cb) {
 }
 
 function resetFilters() {
-  state.filters = { banks: [], accounts: [], from: '', to: '', type: '', trendGran: state.filters.trendGran, txGran: state.filters.txGran };
+  state.filters = { banks: [], accounts: [], from: '', to: '', type: '', parentCat: '', trendGran: state.filters.trendGran, txGran: state.filters.txGran };
   state.settings.excludeCats = [...DEFAULT_EXCLUDE];
-  $('#fltFrom').value = ''; $('#fltTo').value = ''; $('#fltType').value = '';
+  $('#fltFrom').value = ''; $('#fltTo').value = ''; $('#fltType').value = ''; $('#fltParentCat').value = '';
   refreshFilterOptions(); render();
 }
 
@@ -339,6 +355,7 @@ function renderTransactions() {
   const catF = $('#txCatFilter').value;
   const showDupes = $('#txShowDupes').checked;
   const f = state.filters, banks = new Set(f.banks), accts = new Set(f.accounts), excl = new Set(state.settings.excludeCats);
+  const pmap = f.parentCat ? subParentMap() : null;
 
   let rows = state.transactions.filter(t => {
     if (!showDupes && t.isDuplicate) return false;
@@ -347,6 +364,7 @@ function renderTransactions() {
     if (f.from && ym(t.date) < f.from) return false;
     if (f.to && ym(t.date) > f.to) return false;
     if (excl.has(t.category)) return false;
+    if (pmap && (pmap.get(t.category) || 'Custom') !== f.parentCat) return false;
     if (f.type === 'debit' && t.amount >= 0) return false;
     if (f.type === 'credit' && t.amount < 0) return false;
     if (catF && t.category !== catF) return false;

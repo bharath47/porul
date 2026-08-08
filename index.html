@@ -55,31 +55,41 @@
     <main class="main">
       <!-- ===== Global filter bar ===== -->
       <header class="filters" id="filterBar">
-        <div class="filter">
-          <label>Bank</label>
-          <select id="fltBank" class="multi" multiple></select>
-        </div>
-        <div class="filter">
-          <label>Account</label>
-          <select id="fltAccount" class="multi" multiple></select>
-        </div>
-        <div class="filter">
-          <label>Period</label>
-          <div class="date-stack">
-            <input type="month" id="fltFrom" aria-label="From month" />
-            <input type="month" id="fltTo" aria-label="To month" />
+        <div class="filter-row">
+          <div class="filter">
+            <label>Bank</label>
+            <select id="fltBank" class="multi" multiple></select>
+          </div>
+          <div class="filter">
+            <label>Account</label>
+            <select id="fltAccount" class="multi" multiple></select>
+          </div>
+          <div class="filter">
+            <label>Period</label>
+            <div class="date-stack">
+              <input type="month" id="fltFrom" aria-label="From month" />
+              <input type="month" id="fltTo" aria-label="To month" />
+            </div>
+          </div>
+          <div class="filter">
+            <label>Type</label>
+            <select id="fltType">
+              <option value="">All</option>
+              <option value="debit">Debit (out)</option>
+              <option value="credit">Credit (in)</option>
+            </select>
+          </div>
+          <div class="filter">
+            <label>Category</label>
+            <select id="fltParentCat"><option value="">All categories</option></select>
+          </div>
+          <div class="filter-actions">
+            <button id="resetFilters" class="btn ghost">Reset</button>
+            <button id="saveBtn" class="btn primary" title="Save data back to source folder">💾 Save</button>
           </div>
         </div>
-        <div class="filter">
-          <label>Type</label>
-          <select id="fltType">
-            <option value="">All</option>
-            <option value="debit">Debit (out)</option>
-            <option value="credit">Credit (in)</option>
-          </select>
-        </div>
-        <div class="filter grow">
-          <label>Categories
+        <div class="cat-filter-row">
+          <label>Subcategories
             <span class="filter-links">
               <button type="button" class="link-btn" id="catSelectAll">Select all</button>
               <span class="dot">·</span>
@@ -87,10 +97,6 @@
             </span>
           </label>
           <div id="fltIncludeCats" class="chip-tray"></div>
-        </div>
-        <div class="filter-actions">
-          <button id="resetFilters" class="btn ghost">Reset</button>
-          <button id="saveBtn" class="btn primary" title="Save data back to source folder">💾 Save</button>
         </div>
       </header>
 
