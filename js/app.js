@@ -438,8 +438,9 @@ function removeCategory(name) {
 function renderFileList() {
   const wrap = $('#fileList'); wrap.innerHTML = '';
   if (!state.files.length) { wrap.innerHTML = '<div class="empty">No statements uploaded yet.</div>'; return; }
-  wrap.appendChild(el('div', { class: 'muted', style: 'margin-bottom:6px' },
-    `${state.files.length} statement(s) in this dataset`));
+  wrap.appendChild(el('div', { class: 'filelist-head' },
+    el('span', { class: 'muted' }, `${state.files.length} statement(s) in this dataset`),
+    el('button', { class: 'btn danger sm', onclick: removeAllStatements }, '🗑 Delete all')));
   for (const f of state.files) {
     const status = f.status || 'ok';
     wrap.appendChild(el('div', { class: 'file-row' },
@@ -459,6 +460,14 @@ function removeStatement(path) {
   state.files = state.files.filter(x => x.path !== path);
   recompute(); refreshFilterOptions(); render(); persistIfUser();
   toast('Statement removed', 'ok');
+}
+
+function removeAllStatements() {
+  if (!state.files.length) return;
+  if (!confirm(`Remove all ${state.files.length} statements and their transactions? Your original files are not deleted, and your categories and rules are kept.`)) return;
+  state.files = []; state.transactions = [];
+  recompute(); refreshFilterOptions(); render(); persistIfUser();
+  toast('All statements removed', 'ok');
 }
 function log(msg, err = false) {
   const l = $('#importLog');
