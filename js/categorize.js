@@ -17,6 +17,9 @@ export function categorize(transactions, rules, manual) {
 }
 
 // Duplicate key: same bank+account+date+abs(amount)+normalised description.
+// Duplicate key: same bank + account + date + abs(amount) + normalised description.
+export const dupeKey = (t) => [t.bank, t.account, t.date, Math.abs(t.amount).toFixed(2), normDesc(t.description)].join('|');
+
 export function markDuplicates(transactions) {
   const seen = new Set();
   // Deterministic order so the *first* occurrence is the keeper.
@@ -26,7 +29,7 @@ export function markDuplicates(transactions) {
       (a.t.date || '').localeCompare(b.t.date || '') ||
       (a.t.sourceFile || '').localeCompare(b.t.sourceFile || '') || a.i - b.i);
   for (const { t } of order) {
-    const key = [t.bank, t.account, t.date, Math.abs(t.amount).toFixed(2), normDesc(t.description)].join('|');
+    const key = dupeKey(t);
     t.id = hash(key + '|' + (t.sourceFile || ''));
     t.dupKey = key;
     if (seen.has(key)) t.isDuplicate = true;

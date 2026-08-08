@@ -2,7 +2,7 @@
 import { $, $$, el, money, toast, setCurrency, normDesc, ym, monthLabel, parseDate, download } from './util.js';
 import { DEFAULT_CATEGORIES, DEFAULT_RULES, SCHEMA_VERSION, RULES_VERSION } from './config.js';
 import { parseFile } from './parsers.js';
-import { categorize, markDuplicates, uncategorisedGroups } from './categorize.js';
+import { categorize, markDuplicates, uncategorisedGroups, dupeKey } from './categorize.js';
 import { renderDashboard, renderPeriodChart } from './dashboard.js';
 import { initAuth, renderSecurityPanel } from './auth.js';
 import * as store from './storage.js';
@@ -157,15 +157,28 @@ async function importFiles(fileObjs) {
 async function parseAll(items) {
   switchView('import');
   const parsed = [];
+  const keepSources = new Set(items.map(i => i.path || i.name));
+  // Keys already in the dataset (excluding files being re-imported) — used to flag duplicates.
+  const seen = new Set(state.transactions.filter(t => !keepSources.has(t.sourceFile)).map(dupeKey));
   state.files = state.files.filter(f => !items.some(i => i.path === f.path));
+  let totalDup = 0;
   for (const item of items) {
     try {
       const file = await item.get();
       const res = await parseFile(file, item.path || item.name);
+      let dup = 0; const samples = [];
+      for (const t of res.transactions) {
+        const k = dupeKey(t);
+        if (seen.has(k)) { dup++; if (samples.length < 5) samples.push(t); }
+        else seen.add(k);
+      }
+      totalDup += dup;
       parsed.push(...res.transactions.map(t => ({ ...t })));
       state.files.push({ name: item.name, path: item.path, ext: item.ext, count: res.transactions.length,
         status: res.transactions.length ? 'ok' : 'warn', warnings: res.warnings });
-      log(`${item.name}: ${res.transactions.length} txns${res.warnings.length ? ' · ' + res.warnings.join('; ') : ''}`);
+      log(`${item.name}: ${res.transactions.length} txns${dup ? ` · ${dup} duplicate(s) ignored` : ''}${res.warnings.length ? ' · ' + res.warnings.join('; ') : ''}`);
+      for (const t of samples) log(`    ↳ duplicate ignored: ${t.date} ${(t.description || '').slice(0, 40)} ${money(t.amount, { sign: true })}`);
+      if (dup > samples.length) log(`    ↳ …and ${dup - samples.length} more already present`);
     } catch (err) {
       state.files.push({ name: item.name, path: item.path, ext: item.ext, count: 0, status: 'err', warnings: [err.message] });
       log(`${item.name}: ERROR ${err.message}`, true);
@@ -173,11 +186,11 @@ async function parseAll(items) {
     renderFileList();
   }
   // Merge with any cached transactions from other files, replacing same-source rows.
-  const keepSources = new Set(items.map(i => i.path || i.name));
   state.transactions = state.transactions.filter(t => !keepSources.has(t.sourceFile)).concat(parsed);
   recompute();
   refreshFilterOptions();
-  toast(`Imported ${parsed.length} transactions`, 'ok');
+  if (totalDup) log(`Total: ${totalDup} duplicate transaction(s) already present were ignored (not double-counted).`);
+  toast(`Imported ${parsed.length - totalDup} new${totalDup ? `, ${totalDup} duplicate(s) ignored` : ''}`, 'ok');
   render();
   if (state.mode === 'user') persist(true);
 }
