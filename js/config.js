@@ -5,6 +5,7 @@ export const DEFAULT_CATEGORIES = [
   { name: 'EC-Singing',          group: 'Extracurricular' },
   { name: 'EC-Dance',            group: 'Extracurricular' },
   { name: 'EC-UWH',              group: 'Extracurricular' },
+  { name: 'EC-Activity',         group: 'Extracurricular' },
   { name: 'School Fee',          group: 'Education' },
   { name: 'Groceries',           group: 'Living' },
   { name: 'Food',                group: 'Living' },
@@ -15,6 +16,7 @@ export const DEFAULT_CATEGORIES = [
   { name: 'Mortgage',            group: 'Housing' },
   { name: 'Utilities',           group: 'Housing' },
   { name: 'Insurance',           group: 'Housing' },
+  { name: 'Council',             group: 'Housing' },
   { name: 'Health',              group: 'Wellbeing' },
   { name: 'Shopping',            group: 'Lifestyle' },
   { name: 'Entertainment',       group: 'Lifestyle' },
@@ -24,6 +26,7 @@ export const DEFAULT_CATEGORIES = [
   { name: 'Income',              group: 'Income' },
   { name: 'Fees & Interest',     group: 'Banking' },
   { name: 'Cash',                group: 'Banking' },
+  { name: 'Other',               group: 'Other' },
   { name: 'Uncategorised',       group: 'Other' },
 ];
 
@@ -39,12 +42,20 @@ export const DEFAULT_RULES = [
   { kw: 'BHARATANATYAM',     cat: 'EC-Dance' },
   { kw: 'UWH',               cat: 'EC-UWH' },
   { kw: 'UNDERWATER HOCKEY', cat: 'EC-UWH' },
+  { kw: 'DUKEOFEDNZ',        cat: 'EC-Activity' },
+  { kw: 'DUKE OF ED',        cat: 'EC-Activity' },
+  { kw: 'SPLASH AND DASH',   cat: 'EC-Activity' },
+  { kw: 'SPLASH N DASH',     cat: 'EC-Activity' },
+  { kw: 'SPLASH & DASH',     cat: 'EC-Activity' },
+  { kw: 'SPLASHNDASH',       cat: 'EC-Activity' },
   // Education
   { kw: 'SCHOOL',            cat: 'School Fee' },
   { kw: 'COLLEGE',           cat: 'School Fee' },
   { kw: 'EDUCATIONAL',       cat: 'School Fee' },
   { kw: 'KINDERGARTEN',      cat: 'School Fee' },
   { kw: 'DELTA EDUCATIONAL', cat: 'School Fee' },
+  { kw: 'WGC',               cat: 'School Fee' },
+  { kw: 'WELLINGTON GIRLS',  cat: 'School Fee' },
   // Groceries
   { kw: 'PAK N SAVE',        cat: 'Groceries' },
   { kw: 'PAKNSAVE',          cat: 'Groceries' },
@@ -57,10 +68,9 @@ export const DEFAULT_RULES = [
   // Fuel
   { kw: 'WAITOMO',           cat: 'Fuel' },
   { kw: 'BP CONNECT',        cat: 'Fuel' },
-  { kw: 'BP ',               cat: 'Fuel' },
   { kw: 'GULL',              cat: 'Fuel' },
   { kw: 'Z ENERGY',          cat: 'Fuel' },
-  { kw: 'MOBIL',             cat: 'Fuel' },
+  { kw: 'MOBIL ',            cat: 'Fuel' },
   { kw: 'CALTEX',            cat: 'Fuel' },
   { kw: 'GAS ',              cat: 'Fuel' },
   { kw: 'U-GO',              cat: 'Fuel' },
@@ -93,10 +103,14 @@ export const DEFAULT_RULES = [
   { kw: 'HOME LOAN',         cat: 'Mortgage' },
   { kw: 'LOAN PMT',          cat: 'Mortgage' },
   { kw: 'LOAN PAYMENT',      cat: 'Mortgage' },
+  { kw: 'LUMP SUM PAYMENT',  cat: 'Mortgage' },
+  { kw: 'LUMP SUM',          cat: 'Mortgage' },
   { kw: 'SPARK',             cat: 'Utilities' },
   { kw: 'VODAFONE',          cat: 'Utilities' },
   { kw: 'ONE NZ',            cat: 'Utilities' },
   { kw: '2DEGREES',          cat: 'Utilities' },
+  { kw: 'TWO DEGREES',       cat: 'Utilities' },
+  { kw: 'SKINNY',            cat: 'Utilities' },
   { kw: 'CONTACT ENERGY',    cat: 'Utilities' },
   { kw: 'MERCURY',           cat: 'Utilities' },
   { kw: 'GENESIS',           cat: 'Utilities' },
@@ -104,7 +118,10 @@ export const DEFAULT_RULES = [
   { kw: 'TRUSTPOWER',        cat: 'Utilities' },
   { kw: 'INTERNET',          cat: 'Utilities' },
   { kw: 'WATER',             cat: 'Utilities' },
-  { kw: 'COUNCIL',           cat: 'Utilities' },
+  { kw: 'CITY COUNCIL',      cat: 'Council' },
+  { kw: 'DISTRICT COUNCIL',  cat: 'Council' },
+  { kw: 'PORIRUA CITY',      cat: 'Council' },
+  { kw: 'COUNCIL',           cat: 'Council' },
   { kw: 'TOWER',             cat: 'Insurance' },
   { kw: 'AA INSURANCE',      cat: 'Insurance' },
   { kw: 'AMI',               cat: 'Insurance' },
@@ -117,6 +134,8 @@ export const DEFAULT_RULES = [
   { kw: 'MEDICAL',           cat: 'Health' },
   { kw: 'DOCTOR',            cat: 'Health' },
   { kw: 'DENTAL',            cat: 'Health' },
+  { kw: 'DENTIST',           cat: 'Health' },
+  { kw: 'MATT BARKER',       cat: 'Health' },
   { kw: 'PHYSIO',            cat: 'Health' },
   // Shopping
   { kw: 'BUNNINGS',          cat: 'Shopping' },
@@ -171,3 +190,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
+export const RULES_VERSION = 2;

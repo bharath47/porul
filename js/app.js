@@ -1,6 +1,6 @@
 // app.js — application controller: state, views, filters, import, persistence.
 import { $, $$, el, money, toast, setCurrency, normDesc, ym, monthLabel, parseDate, download } from './util.js';
-import { DEFAULT_CATEGORIES, DEFAULT_RULES, SCHEMA_VERSION } from './config.js';
+import { DEFAULT_CATEGORIES, DEFAULT_RULES, SCHEMA_VERSION, RULES_VERSION } from './config.js';
 import { parseFile } from './parsers.js';
 import { categorize, markDuplicates, uncategorisedGroups } from './categorize.js';
 import { renderDashboard, renderPeriodChart } from './dashboard.js';
@@ -18,7 +18,8 @@ const state = {
   view: 'dashboard',
 };
 
-const DEFAULT_EXCLUDE = ['Interbank Transfers'];
+// No categories are deselected by default (everything included).
+const DEFAULT_EXCLUDE = [];
 const allCatNames = () => state.categories.map(c => c.name);
 function ensureExclude() { if (!Array.isArray(state.settings.excludeCats)) state.settings.excludeCats = [...DEFAULT_EXCLUDE]; }
 // Categories that actually appear in the (non-duplicate) imported data.
@@ -60,9 +61,16 @@ async function restoreSession() {
 function hydrate(data) {
   if (Array.isArray(data.categories) && data.categories.length) state.categories = data.categories;
   if (data.settings) state.settings = { ...state.settings, ...data.settings };
-  if (Array.isArray(data.rules) && data.rules.length) state.rules = data.rules;
   if (data.manual) state.manual = data.manual;
   if (Array.isArray(data.transactions)) state.transactions = data.transactions;
+
+  // When the built-in rule set is upgraded, re-seed rules and merge in any new default
+  // categories. User manual assignments (state.manual) and custom categories are kept.
+  const outdated = (data.rulesVersion || 0) < RULES_VERSION;
+  if (outdated) state.rules = [...DEFAULT_RULES];
+  else if (Array.isArray(data.rules) && data.rules.length) state.rules = data.rules;
+  for (const c of DEFAULT_CATEGORIES) if (!state.categories.some(x => x.name === c.name)) state.categories.push(c);
+
   // If older data used an include list, convert it back to an exclude list.
   if (!Array.isArray(state.settings.excludeCats)) {
     if (Array.isArray(state.settings.includeCats)) {
@@ -70,6 +78,9 @@ function hydrate(data) {
       state.settings.excludeCats = allCatNames().filter(c => !incl.has(c));
     } else state.settings.excludeCats = [...DEFAULT_EXCLUDE];
   }
+  // On upgrade, drop the old default that deselected Interbank Transfers.
+  if (outdated && state.settings.excludeCats.length === 1 && state.settings.excludeCats[0] === 'Interbank Transfers')
+    state.settings.excludeCats = [];
   delete state.settings.includeCats;
   setCurrency(state.settings.currency);
 }
@@ -447,7 +458,7 @@ function applyTheme() {
 // ============================ persistence ============================
 function buildData() {
   return {
-    schema: 'porul', version: SCHEMA_VERSION, updatedAt: new Date().toISOString(),
+    schema: 'porul', version: SCHEMA_VERSION, rulesVersion: RULES_VERSION, updatedAt: new Date().toISOString(),
     settings: state.settings, categories: state.categories, rules: state.rules, manual: state.manual,
     transactions: state.transactions.map(({ id, isDuplicate, dupKey, category, categorySource, merchant, ...keep }) => keep),
   };
