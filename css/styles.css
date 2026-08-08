@@ -111,6 +111,9 @@ input:focus, select:focus { border-color: var(--gold); }
 .filter select.multi { min-width: 150px; width: 150px; height: 80px; }
 .date-stack { display: flex; flex-direction: column; gap: 6px; }
 .date-stack input { min-width: 150px; }
+/* Group above Category, stacked in one column */
+.cat-cascade select { min-width: 160px; }
+.cat-cascade label.mt { margin-top: 3px; }
 .filter-actions { position: absolute; top: 12px; right: 0; display: flex; gap: 8px; align-items: center; }
 .filter-links { margin-left: 8px; text-transform: none; letter-spacing: 0; font-weight: 500; }
 .filter-links .dot { color: var(--line); margin: 0 3px; }
