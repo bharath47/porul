@@ -14,7 +14,7 @@ const state = {
   rules: [...DEFAULT_RULES],
   manual: {},
   settings: { dark: false, currency: '$', excludeCats: null },
-  filters: { banks: [], accounts: [], from: '', to: '', type: '', parentCat: '', trendGran: 'month', txGran: 'month' },
+  filters: { banks: [], accounts: [], from: '', to: '', type: '', group: '', parentCat: '', trendGran: 'month', txGran: 'month' },
   view: 'dashboard',
 };
 
@@ -27,9 +27,10 @@ function availableCategories() {
   const present = new Set(state.transactions.filter(t => !t.isDuplicate).map(t => t.category));
   let ordered = state.categories.map(c => c.name).filter(n => present.has(n));
   for (const n of present) if (!ordered.includes(n)) ordered.push(n);
-  // Narrow to the selected parent category, if one is chosen.
-  const pc = state.filters.parentCat;
+  // Narrow to the selected category, else to the selected group.
+  const pc = state.filters.parentCat, grp = state.filters.group;
   if (pc) { const pm = subParentMap(); ordered = ordered.filter(n => (pm.get(n) || 'Custom') === pc); }
+  else if (grp) { const gm = subGroupMap(); ordered = ordered.filter(n => (gm.get(n) || 'Custom') === grp); }
   return ordered;
 }
 
@@ -131,6 +132,14 @@ function wireEvents() {
     $('#' + id).addEventListener('change', () => { readFilters(); render(); }));
   // Parent category also narrows the subcategory chips/dropdowns everywhere.
   $('#fltParentCat').addEventListener('change', () => { readFilters(); refreshFilterOptions(); render(); });
+  // Group cascades to Category → Subcategory.
+  $('#fltGroup').addEventListener('change', () => {
+    readFilters();
+    if (state.filters.parentCat && !availableParentCategories().includes(state.filters.parentCat)) {
+      state.filters.parentCat = ''; $('#fltParentCat').value = '';
+    }
+    refreshFilterOptions(); render();
+  });
   $('#fltBank').addEventListener('change', onBankChange);
   $('#catSelectAll').addEventListener('click', () => { state.settings.excludeCats = []; renderCatChips(); render(); });
   $('#catClear').addEventListener('click', () => { state.settings.excludeCats = [...availableCategories()]; renderCatChips(); render(); });
@@ -226,17 +235,27 @@ function recompute() {
   markDuplicates(state.transactions);
 }
 
-// Map subcategory (leaf) → parent category, and list parent categories present in data.
+// Map subcategory (leaf) → parent category / group, and list parents/groups present.
 const subParentMap = () => new Map(state.categories.map(c => [c.name, c.category || 'Custom']));
+const subGroupMap = () => new Map(state.categories.map(c => [c.name, c.group || 'Custom']));
+function availableGroups() {
+  const g = subGroupMap();
+  const present = new Set(state.transactions.filter(t => !t.isDuplicate).map(t => g.get(t.category) || 'Custom'));
+  return [...new Set(state.categories.map(c => c.group || 'Custom'))].filter(x => present.has(x));
+}
 function availableParentCategories() {
   const p = subParentMap();
   const present = new Set(state.transactions.filter(t => !t.isDuplicate).map(t => p.get(t.category) || 'Custom'));
-  return [...new Set(state.categories.map(c => c.category || 'Custom'))].filter(c => present.has(c));
+  const grp = state.filters.group;
+  const catGroup = new Map(state.categories.map(c => [c.category || 'Custom', c.group || 'Custom']));
+  return [...new Set(state.categories.map(c => c.category || 'Custom'))]
+    .filter(c => present.has(c) && (!grp || (catGroup.get(c) || 'Custom') === grp));
 }
 
 function activeRows() {
   const f = state.filters;
   const banks = new Set(f.banks), accts = new Set(f.accounts), excl = new Set(state.settings.excludeCats);
+  const gmap = f.group ? subGroupMap() : null;
   const pmap = f.parentCat ? subParentMap() : null;
   return state.transactions.filter(t => {
     if (t.isDuplicate) return false;
@@ -245,6 +264,7 @@ function activeRows() {
     if (f.from && ym(t.date) < f.from) return false;
     if (f.to && ym(t.date) > f.to) return false;
     if (excl.has(t.category)) return false;
+    if (gmap && (gmap.get(t.category) || 'Custom') !== f.group) return false;
     if (pmap && (pmap.get(t.category) || 'Custom') !== f.parentCat) return false;
     if (f.type === 'debit' && t.amount >= 0) return false;
     if (f.type === 'credit' && t.amount < 0) return false;
@@ -266,7 +286,12 @@ function refreshFilterOptions() {
     $('#fltFrom').max = $('#fltTo').max = dates.at(-1);
   }
   renderCatChips();
-  // Parent-category dropdown — only parent categories present in the data
+  // Group dropdown — groups present in the data
+  const gsel = $('#fltGroup'); const gcur = gsel.value;
+  gsel.innerHTML = '<option value="">All groups</option>' +
+    availableGroups().map(g => `<option>${g}</option>`).join('');
+  gsel.value = gcur;
+  // Parent-category dropdown — categories in the selected group (or all)
   const psel = $('#fltParentCat'); const pcur = psel.value;
   psel.innerHTML = '<option value="">All categories</option>' +
     availableParentCategories().map(c => `<option>${c}</option>`).join('');
@@ -289,6 +314,7 @@ function readFilters() {
   state.filters.from = $('#fltFrom').value;
   state.filters.to = $('#fltTo').value;
   state.filters.type = $('#fltType').value;
+  state.filters.group = $('#fltGroup').value;
   state.filters.parentCat = $('#fltParentCat').value;
 }
 
@@ -308,9 +334,9 @@ function segClick(sel, e, cb) {
 }
 
 function resetFilters() {
-  state.filters = { banks: [], accounts: [], from: '', to: '', type: '', parentCat: '', trendGran: state.filters.trendGran, txGran: state.filters.txGran };
+  state.filters = { banks: [], accounts: [], from: '', to: '', type: '', group: '', parentCat: '', trendGran: state.filters.trendGran, txGran: state.filters.txGran };
   state.settings.excludeCats = [...DEFAULT_EXCLUDE];
-  $('#fltFrom').value = ''; $('#fltTo').value = ''; $('#fltType').value = ''; $('#fltParentCat').value = '';
+  $('#fltFrom').value = ''; $('#fltTo').value = ''; $('#fltType').value = ''; $('#fltGroup').value = ''; $('#fltParentCat').value = '';
   refreshFilterOptions(); render();
 }
 
@@ -360,6 +386,7 @@ function renderTransactions() {
   const catF = $('#txCatFilter').value;
   const showDupes = $('#txShowDupes').checked;
   const f = state.filters, banks = new Set(f.banks), accts = new Set(f.accounts), excl = new Set(state.settings.excludeCats);
+  const gmap = f.group ? subGroupMap() : null;
   const pmap = f.parentCat ? subParentMap() : null;
 
   let rows = state.transactions.filter(t => {
@@ -369,6 +396,7 @@ function renderTransactions() {
     if (f.from && ym(t.date) < f.from) return false;
     if (f.to && ym(t.date) > f.to) return false;
     if (excl.has(t.category)) return false;
+    if (gmap && (gmap.get(t.category) || 'Custom') !== f.group) return false;
     if (pmap && (pmap.get(t.category) || 'Custom') !== f.parentCat) return false;
     if (f.type === 'debit' && t.amount >= 0) return false;
     if (f.type === 'credit' && t.amount < 0) return false;
