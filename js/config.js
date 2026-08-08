@@ -64,6 +64,9 @@ export const DEFAULT_RULES = [
   { kw: 'NEW WORLD',         cat: 'Groceries' },
   { kw: 'FRESH CHOICE',      cat: 'Groceries' },
   { kw: 'MOORE WILSON',      cat: 'Groceries' },
+  { kw: 'SPICE RACK',        cat: 'Groceries' },
+  { kw: 'UNCLE BILLS',       cat: 'Groceries' },
+  { kw: 'UNCLE BILL',        cat: 'Groceries' },
   { kw: 'SUPERMARKET',       cat: 'Groceries' },
   // Fuel
   { kw: 'WAITOMO',           cat: 'Fuel' },
@@ -190,4 +193,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
-export const RULES_VERSION = 2;
+export const RULES_VERSION = 3;
