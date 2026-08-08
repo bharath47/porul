@@ -102,7 +102,7 @@ input:focus, select:focus { border-color: var(--gold); }
 /* ---------- Filter bar ---------- */
 .filters { position: sticky; top: 0; z-index: 20; background: var(--bg); display: flex; flex-direction: column;
   gap: 10px; padding: 12px 0; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
-.filter-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding-right: 176px; }
+.filter-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding-right: 176px; }
 .filter { display: flex; flex-direction: column; gap: 5px; }
 .filter label { font-size: 11px; color: var(--ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
 .filter select, .filter input { min-width: 120px; }
