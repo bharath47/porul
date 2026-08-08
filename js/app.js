@@ -176,9 +176,10 @@ async function parseAll(items) {
       parsed.push(...res.transactions.map(t => ({ ...t })));
       state.files.push({ name: item.name, path: item.path, ext: item.ext, count: res.transactions.length,
         status: res.transactions.length ? 'ok' : 'warn', warnings: res.warnings });
-      log(`${item.name}: ${res.transactions.length} txns${dup ? ` · ${dup} duplicate(s) ignored` : ''}${res.warnings.length ? ' · ' + res.warnings.join('; ') : ''}`);
-      for (const t of samples) log(`    ↳ duplicate ignored: ${t.date} ${(t.description || '').slice(0, 40)} ${money(t.amount, { sign: true })}`);
-      if (dup > samples.length) log(`    ↳ …and ${dup - samples.length} more already present`);
+      log(`${item.name}: ${res.transactions.length} txns${res.warnings.length ? ' · ' + res.warnings.join('; ') : ''}`);
+      if (dup) log(`   ${dup} duplicate transaction(s) already present were ignored:`, 'dup');
+      for (const t of samples) log(`    ↳ ${t.date} ${(t.description || '').slice(0, 40)} ${money(t.amount, { sign: true })}`, 'dup');
+      if (dup > samples.length) log(`    ↳ …and ${dup - samples.length} more`, 'dup');
     } catch (err) {
       state.files.push({ name: item.name, path: item.path, ext: item.ext, count: 0, status: 'err', warnings: [err.message] });
       log(`${item.name}: ERROR ${err.message}`, true);
@@ -189,7 +190,7 @@ async function parseAll(items) {
   state.transactions = state.transactions.filter(t => !keepSources.has(t.sourceFile)).concat(parsed);
   recompute();
   refreshFilterOptions();
-  if (totalDup) log(`Total: ${totalDup} duplicate transaction(s) already present were ignored (not double-counted).`);
+  if (totalDup) log(`Total: ${totalDup} duplicate transaction(s) already present were ignored (not double-counted).`, 'dup');
   toast(`Imported ${parsed.length - totalDup} new${totalDup ? `, ${totalDup} duplicate(s) ignored` : ''}`, 'ok');
   render();
   if (state.mode === 'user') persist(true);
@@ -482,9 +483,11 @@ function removeAllStatements() {
   recompute(); refreshFilterOptions(); render(); persistIfUser();
   toast('All statements removed', 'ok');
 }
-function log(msg, err = false) {
+function log(msg, kind = '') {
+  const color = (kind === true || kind === 'err') ? 'var(--bad)'
+              : kind === 'dup' ? '#b5793a' : '';
   const l = $('#importLog');
-  l.appendChild(el('div', { style: err ? 'color:var(--bad)' : '' }, `› ${msg}`));
+  l.appendChild(el('div', { style: color ? `color:${color}` : '' }, `› ${msg}`));
   l.scrollTop = l.scrollHeight;
 }
 
