@@ -210,6 +210,9 @@ input:focus, select:focus { border-color: var(--gold); }
 .badge.xlsx { background: #e8f0fe; color: #1a56b0; }
 .file-row .cnt { color: var(--ink-soft); font-size: 12px; }
 .file-row .st-ok { color: var(--good); } .file-row .st-warn { color: var(--warn); } .file-row .st-err { color: var(--bad); }
+.file-remove { margin-left: 4px; background: transparent; border: none; color: var(--ink-soft); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 3px 7px; border-radius: 6px; }
+.file-remove:hover { background: var(--bad); color: #fff; }
 .log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--ink-soft);
   max-height: 40vh; overflow: auto; white-space: pre-wrap; line-height: 1.6; }
 

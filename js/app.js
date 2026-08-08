@@ -47,6 +47,8 @@ async function onLogin(mode, name) {
 }
 
 async function restoreSession() {
+  // Guests start with a clean slate — never load the signed-in user's saved data.
+  if (state.mode !== 'user') { recompute(); return; }
   // Reconnect a previously chosen folder (needs a click to re-grant permission).
   const dir = store.hasFS ? await store.restoreDirectory() : null;
   let data = null;
@@ -58,11 +60,18 @@ async function restoreSession() {
   recompute();
 }
 
+// Sign out: wipe in-memory data so nothing lingers on screen, then show the lock screen.
+function signOut() {
+  state.transactions = []; state.files = []; state.manual = {};
+  location.reload();
+}
+
 function hydrate(data) {
   if (Array.isArray(data.categories) && data.categories.length) state.categories = data.categories;
   if (data.settings) state.settings = { ...state.settings, ...data.settings };
   if (data.manual) state.manual = data.manual;
   if (Array.isArray(data.transactions)) state.transactions = data.transactions;
+  if (Array.isArray(data.files)) state.files = data.files;
 
   // When the built-in rule set is upgraded, re-seed rules and merge in any new default
   // categories. User manual assignments (state.manual) and custom categories are kept.
@@ -88,7 +97,7 @@ function hydrate(data) {
 // ============================ events ============================
 function wireEvents() {
   $$('.nav-item').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
-  $('#logoutBtn').addEventListener('click', () => location.reload());
+  $('#logoutBtn').addEventListener('click', signOut);
 
   $('#pickFolder').addEventListener('click', pickFolder);
   $('#addFiles').addEventListener('click', () => $('#hiddenFileInput').click());
@@ -428,14 +437,28 @@ function removeCategory(name) {
 // ============================ import view ============================
 function renderFileList() {
   const wrap = $('#fileList'); wrap.innerHTML = '';
-  if (!state.files.length) { wrap.innerHTML = '<div class="empty">No files loaded yet.</div>'; return; }
+  if (!state.files.length) { wrap.innerHTML = '<div class="empty">No statements uploaded yet.</div>'; return; }
+  wrap.appendChild(el('div', { class: 'muted', style: 'margin-bottom:6px' },
+    `${state.files.length} statement(s) in this dataset`));
   for (const f of state.files) {
+    const status = f.status || 'ok';
     wrap.appendChild(el('div', { class: 'file-row' },
       el('span', { class: 'badge ' + (f.ext === 'xls' ? 'xlsx' : f.ext) }, f.ext),
       el('span', { class: 'fname', title: f.path }, f.path),
       el('span', { class: 'cnt' }, `${f.count} txns`),
-      el('span', { class: 'st-' + f.status }, f.status === 'ok' ? '✓' : f.status === 'warn' ? '⚠' : '✕')));
+      el('span', { class: 'st-' + status }, status === 'ok' ? '✓' : status === 'warn' ? '⚠' : '✕'),
+      el('button', { class: 'file-remove', title: 'Remove this statement and its transactions',
+        onclick: () => removeStatement(f.path) }, '✕')));
   }
+}
+
+function removeStatement(path) {
+  const f = state.files.find(x => x.path === path);
+  if (!confirm(`Remove "${path}"${f ? ` and its ${f.count} transactions` : ''}? Your original file is not deleted.`)) return;
+  state.transactions = state.transactions.filter(t => t.sourceFile !== path);
+  state.files = state.files.filter(x => x.path !== path);
+  recompute(); refreshFilterOptions(); render(); persistIfUser();
+  toast('Statement removed', 'ok');
 }
 function log(msg, err = false) {
   const l = $('#importLog');
@@ -463,6 +486,7 @@ function buildData() {
   return {
     schema: 'porul', version: SCHEMA_VERSION, rulesVersion: RULES_VERSION, updatedAt: new Date().toISOString(),
     settings: state.settings, categories: state.categories, rules: state.rules, manual: state.manual,
+    files: state.files.map(({ name, path, ext, count, status }) => ({ name, path, ext, count, status })),
     transactions: state.transactions.map(({ id, isDuplicate, dupKey, category, categorySource, merchant, ...keep }) => keep),
   };
 }
