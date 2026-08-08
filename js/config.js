@@ -22,7 +22,7 @@ export const TAXONOMY = {
     'Academic Supplies': ['Uniforms & Apparel', 'Textbooks & Reading', 'Stationeries & Materials'],
   },
   'Extra-Curriculars, Sports & Enrichment': {
-    'Active & Athletics': ['Sports Clubs & Registration', 'Sports Gear & Outfitting', 'Coaching & Training'],
+    'Active & Athletics': ['Sports Clubs & Registration', 'Coaching & Training'],
     'Arts & Music': ['Music & Dance Lessons', 'Instrument Rentals & Supplies', 'Performing Arts Clubs'],
     'Youth Activities': ['Scouting / Youth Clubs', 'Summer & Holiday Camps', 'Science Fair / Academic Competitions'],
   },
@@ -37,7 +37,7 @@ export const TAXONOMY = {
   'Personal Care, Health & Lifestyle': {
     'Health & Medical': ['Doctor & Specialist Visits', 'Dental & Eyecare', 'Pharmacy & Prescriptions', 'Health Insurance'],
     'Personal Care & Wellness': ['Haircuts & Salon', 'Cosmetics & Toiletries', 'Gym & Fitness Memberships'],
-    'Shopping & Entertainment': ['Clothing & Shoes', 'Tech & Gadgets', 'Streaming & Digital Subscriptions', 'Books & Media'],
+    'Shopping & Entertainment': ['Clothing & Shoes', 'Sports Gear & Outfitting', 'Tech & Gadgets', 'Streaming & Digital Subscriptions', 'Books & Media'],
   },
   'Financial, Debt & Savings': {
     'Financial Obligations': ['Personal / Student Loan Repayments', 'Credit Card Interest', 'Bank & Transaction Fees', 'Insurance (General)'],
@@ -145,6 +145,11 @@ export const DEFAULT_RULES = [
   { kw: 'STARBUCKS', cat: 'Coffee Shops & Cafes' },
   { kw: 'CAFE', cat: 'Coffee Shops & Cafes' },
   { kw: 'RESTAURANT', cat: 'Restaurants' },
+  { kw: 'PUNJABI', cat: 'Restaurants' },
+  { kw: 'CUISINE', cat: 'Restaurants' },
+  { kw: 'MASALA', cat: 'Restaurants' },
+  { kw: 'KITCHEN', cat: 'Restaurants' },
+  { kw: 'TANDOOR', cat: 'Restaurants' },
   // Transit / rideshare
   { kw: 'UBER', cat: 'Rideshare & Taxis' },
   { kw: 'METLINK', cat: 'Public Transit (Bus/Train/Ferry)' },
@@ -244,4 +249,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
-export const RULES_VERSION = 5;
+export const RULES_VERSION = 6;

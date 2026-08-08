@@ -238,6 +238,7 @@ function recompute() {
 // Map subcategory (leaf) → parent category / group, and list parents/groups present.
 const subParentMap = () => new Map(state.categories.map(c => [c.name, c.category || 'Custom']));
 const subGroupMap = () => new Map(state.categories.map(c => [c.name, c.group || 'Custom']));
+const leafMetaMap = () => new Map(state.categories.map(c => [c.name, { category: c.category || 'Custom', group: c.group || 'Custom' }]));
 function availableGroups() {
   const g = subGroupMap();
   const present = new Set(state.transactions.filter(t => !t.isDuplicate).map(t => g.get(t.category) || 'Custom'));
@@ -383,7 +384,7 @@ function switchView(view) {
 function render() {
   if (state.view === 'dashboard') {
     if (!state.transactions.length) return emptyDashboard();
-    renderDashboard(activeRows(), { trendGran: state.filters.trendGran });
+    renderDashboard(activeRows(), { trendGran: state.filters.trendGran, catMeta: leafMetaMap() });
   } else if (state.view === 'transactions') renderTransactions();
   else if (state.view === 'categories') renderCategories();
   else if (state.view === 'import') renderFileList();
@@ -422,7 +423,7 @@ function renderTransactions() {
   sortTxRows(rows);
 
   renderTxMetrics(rows);
-  renderPeriodChart('chartTxTime', rows, state.filters.txGran);
+  renderPeriodChart('chartTxTime', rows, state.filters.txGran, (key) => filterByPeriod(key, state.filters.txGran));
 
   const shown = rows.slice(0, 600);
   const table = el('table');
@@ -462,6 +463,15 @@ function setManualCategory(desc, cat) {
   state.manual[normDesc(desc)] = cat;
   recompute(); refreshFilterOptions(); render();
   if (state.mode === 'user') persist(true);
+}
+
+// Clicking a bar in the amount-over-time chart filters everything to that period.
+function filterByPeriod(key, gran) {
+  if (gran === 'year') { state.filters.from = `${key}-01`; state.filters.to = `${key}-12`; }
+  else { state.filters.from = key; state.filters.to = key; }
+  $('#fltFrom').value = state.filters.from; $('#fltTo').value = state.filters.to;
+  render();
+  toast(`Filtered to ${gran === 'year' ? key : monthLabel(key)}`, 'ok');
 }
 
 function renderTxMetrics(rows) {

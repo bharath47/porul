@@ -12,7 +12,7 @@ function chart(id, cfg) {
 }
 const cssVar = (n) => getComputedStyle(document.body).getPropertyValue(n).trim();
 
-export function renderDashboard(rows, { trendGran = 'month' } = {}) {
+export function renderDashboard(rows, { trendGran = 'month', catMeta = new Map() } = {}) {
   const spend = rows.filter(t => t.amount < 0);
   const income = rows.filter(t => t.amount > 0);
   const totalOut = spend.reduce((s, t) => s + -t.amount, 0);
@@ -32,7 +32,7 @@ export function renderDashboard(rows, { trendGran = 'month' } = {}) {
   renderMerchants(spend);
   renderBank(spend);
   renderCashflow(rows);
-  renderCatTable(spend, totalOut);
+  renderCatTable(spend, totalOut, catMeta);
 }
 
 function renderKpis(items) {
@@ -65,17 +65,26 @@ function renderTrend(spend, gran = 'month') {
 }
 
 // Grouped money-in / money-out bars per period — used by the Transactions view.
-export function renderPeriodChart(canvasId, rows, gran = 'month') {
+export function renderPeriodChart(canvasId, rows, gran = 'month', onPeriodClick = null) {
   const periods = [...new Set(rows.map(t => periodKey(t, gran)).filter(Boolean))].sort();
   const out = {}, inn = {};
   for (const t of rows) { const k = periodKey(t, gran); if (!k) continue; if (t.amount < 0) out[k] = (out[k] || 0) - t.amount; else inn[k] = (inn[k] || 0) + t.amount; }
+  const options = baseOpts({ money: true, legend: true });
+  if (onPeriodClick) {
+    options.onClick = (e, els, ch) => {
+      const pts = ch.getElementsAtEventForMode(e, 'index', { intersect: false }, true);
+      const idx = els[0]?.index ?? pts[0]?.index;
+      if (idx != null && periods[idx]) onPeriodClick(periods[idx]);
+    };
+    options.onHover = (e, els, ch) => { ch.canvas.style.cursor = els.length ? 'pointer' : 'default'; };
+  }
   chart(canvasId, {
     type: 'bar',
     data: { labels: periods.map(p => periodLabel(p, gran)), datasets: [
       { label: 'Money out', data: periods.map(p => out[p] || 0), backgroundColor: cssVar('--bad'),  borderRadius: 4 },
       { label: 'Money in',  data: periods.map(p => inn[p] || 0), backgroundColor: cssVar('--good'), borderRadius: 4 },
     ] },
-    options: baseOpts({ money: true, legend: true }),
+    options,
   });
 }
 
@@ -127,13 +136,42 @@ function renderCashflow(rows) {
   });
 }
 
-function renderCatTable(spend, total) {
-  const data = aggregate(spend, t => t.category);
+// Expandable Group → Category → Subcategory breakdown.
+function renderCatTable(spend, total, catMeta) {
   const wrap = document.getElementById('catTable');
-  const rows = data.map(([cat, val]) => `<tr><td>${cat}</td><td class="num">${money(val)}</td>
-    <td class="num">${total ? ((val/total)*100).toFixed(1) : '0'}%</td></tr>`).join('');
-  wrap.innerHTML = `<table><thead><tr><th>Category</th><th class="num">Amount</th><th class="num">Share</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="3" class="empty">No spending in range</td></tr>'}</tbody></table>`;
+  wrap.innerHTML = '';
+  if (!spend.length) { wrap.innerHTML = '<div class="empty">No spending in range</div>'; return; }
+  const tree = new Map();
+  for (const t of spend) {
+    const meta = catMeta.get(t.category) || { category: 'Other', group: 'Other' };
+    const amt = Math.abs(t.amount);
+    if (!tree.has(meta.group)) tree.set(meta.group, { total: 0, cats: new Map() });
+    const g = tree.get(meta.group); g.total += amt;
+    if (!g.cats.has(meta.category)) g.cats.set(meta.category, { total: 0, subs: new Map() });
+    const c = g.cats.get(meta.category); c.total += amt;
+    c.subs.set(t.category, (c.subs.get(t.category) || 0) + amt);
+  }
+  const pct = (v) => total ? ((v / total) * 100).toFixed(1) + '%' : '0%';
+  const bdRow = (cls, name, amt) => el('div', { class: 'bd-row ' + cls },
+    el('span', { class: 'bd-tw' }, cls === 'bd-s' ? '' : '▸'),
+    el('span', { class: 'bd-name' }, name),
+    el('span', { class: 'bd-amt num' }, money(amt)),
+    el('span', { class: 'bd-pct num' }, pct(amt)));
+  for (const [gName, g] of [...tree.entries()].sort((a, b) => b[1].total - a[1].total)) {
+    const gEl = el('div', { class: 'bd-group' });
+    const gHead = bdRow('bd-g', gName, g.total); gHead.addEventListener('click', () => gEl.classList.toggle('open'));
+    gEl.appendChild(gHead);
+    for (const [cName, c] of [...g.cats.entries()].sort((a, b) => b[1].total - a[1].total)) {
+      const cEl = el('div', { class: 'bd-cat' });
+      const cHead = bdRow('bd-c', cName, c.total);
+      cHead.addEventListener('click', (e) => { e.stopPropagation(); cEl.classList.toggle('open'); });
+      cEl.appendChild(cHead);
+      for (const [sName, sVal] of [...c.subs.entries()].sort((a, b) => b[1] - a[1]))
+        cEl.appendChild(bdRow('bd-s', sName, sVal));
+      gEl.appendChild(cEl);
+    }
+    wrap.appendChild(gEl);
+  }
 }
 
 const shortAcct = (a) => { const s = String(a || ''); return s.length > 8 ? '…' + s.slice(-6) : s; };
