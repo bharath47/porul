@@ -157,21 +157,49 @@ export function pageItemsToRows(rawItems, page = 1) {
 
 export function dispatchRows(rows, fname) {
   const fullText = rows.map(r => r.text).join('\n');
-  const bank = detectBank(fullText, fname);
-  if (bank === 'ANZ')      return parseAnzRows(rows, fname);
-  if (bank === 'AMEX')     return parseAmexRows(rows, fname);
-  if (bank === 'KiwiBank') return parseKiwiRows(rows, fname);
-  return parseGenericRows(rows, fname, bank);
+  const c = classify(fullText, fname);
+  if (c.parser === 'ANZ')      return parseAnzRows(rows, fname);
+  if (c.parser === 'AMEX')     return parseAmexRows(rows, fname);
+  if (c.parser === 'KIWIBANK') return parseKiwiRows(rows, fname);
+  return parseGenericRows(rows, fname, c.name);
 }
 
-function detectBank(text, fname) {
+// Route to a tuned parser when we recognise the issuer; otherwise fall back to the
+// generic engine with a best-effort bank name.
+function classify(text, fname) {
   const t = text.toLowerCase(), f = (fname || '').toLowerCase();
-  // ANZ / AMEX statements can *mention* other banks in a transaction, so match issuer tokens
-  // and filename first; the bare account-number pattern is only a last resort.
-  if (f.includes('anz') || /anz bank new zealand|anz\.co\.nz/.test(t)) return 'ANZ';
-  if (f.includes('amex') || /americanexpress\.co\.nz|american express international|xxxx-xxxxxx-/.test(t)) return 'AMEX';
-  if (f.includes('kiwibank') || /kiwibank|access number/.test(t)) return 'KiwiBank';
-  if (/\d{2}-\d{4}-\d{7}-\d{2}/.test(text)) return 'ANZ';
+  if (f.includes('anz') || /anz bank new zealand|anz\.co\.nz/.test(t)) return { parser: 'ANZ', name: 'ANZ' };
+  if (f.includes('amex') || /americanexpress\.co\.nz|american express international|xxxx-xxxxxx-/.test(t)) return { parser: 'AMEX', name: 'AMEX' };
+  if (f.includes('kiwibank') || /kiwibank|access number/.test(t)) return { parser: 'KIWIBANK', name: 'KiwiBank' };
+  if (/\d{2}-\d{4}-\d{7}-\d{2}/.test(text)) return { parser: 'ANZ', name: 'ANZ' };
+  return { parser: 'GENERIC', name: guessBankName(text, fname) };
+}
+
+const KNOWN_BANKS = [
+  [/westpac/i, 'Westpac'], [/\bbnz\b|bank of new zealand/i, 'BNZ'], [/\basb\b/i, 'ASB'], [/\btsb\b/i, 'TSB'],
+  [/co-?operative bank/i, 'Co-operative Bank'], [/rabobank/i, 'Rabobank'], [/heartland/i, 'Heartland'],
+  [/hsbc/i, 'HSBC'], [/barclays/i, 'Barclays'], [/lloyds/i, 'Lloyds'], [/natwest/i, 'NatWest'], [/santander/i, 'Santander'],
+  [/halifax/i, 'Halifax'], [/monzo/i, 'Monzo'], [/starling/i, 'Starling'], [/revolut/i, 'Revolut'], [/nationwide/i, 'Nationwide'],
+  [/bank of america/i, 'Bank of America'], [/chase/i, 'Chase'], [/wells fargo/i, 'Wells Fargo'], [/citibank|citi\b/i, 'Citi'],
+  [/capital one/i, 'Capital One'], [/\bpnc\b/i, 'PNC'], [/\btd bank\b/i, 'TD Bank'], [/u\.?s\.? bank/i, 'US Bank'],
+  [/hdfc/i, 'HDFC'], [/icici/i, 'ICICI'], [/\bsbi\b|state bank of india/i, 'SBI'], [/axis bank/i, 'Axis'], [/kotak/i, 'Kotak'],
+  [/commonwealth bank|commbank/i, 'CommBank'], [/\bnab\b|national australia/i, 'NAB'], [/st\.?george/i, 'St.George'],
+  [/bendigo/i, 'Bendigo'], [/\bdbs\b/i, 'DBS'], [/ocbc/i, 'OCBC'], [/\buob\b/i, 'UOB'], [/standard chartered/i, 'Standard Chartered'],
+  [/bank of ireland/i, 'Bank of Ireland'], [/\baib\b/i, 'AIB'], [/deutsche bank/i, 'Deutsche Bank'],
+];
+function guessBankName(text, fname) {
+  const head = text.split('\n').slice(0, 12).join('\n');   // match the letterhead, not transaction lines
+  const f = fname || '';
+  for (const [re, name] of KNOWN_BANKS) if (re.test(head) || re.test(f)) return name;
+  const seg = f.split(/[\/\\]/);                            // folder hint, e.g. "HSBC/statement.pdf"
+  if (seg.length > 1 && seg[0] && !/\.(pdf|csv|xlsx?)$/i.test(seg[0])) return seg[0];
+  const line = (head.split('\n').find(l => /\b(bank|credit union|building society)\b/i.test(l)) || '').trim();
+  if (line) return line.replace(/\s+/g, ' ').slice(0, 28);
+  const base = (seg[seg.length - 1] || '').replace(/\.(pdf|csv|xlsx?)$/i, '')
+    .replace(/[_\-]+/g, ' ').replace(/\b\d{1,4}\b/g, '')
+    .replace(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/ig, '')
+    .replace(/statement|personal|account/ig, '').replace(/\s+/g, ' ').trim();
+  if (base.length >= 3) return base.replace(/\b\w/g, c => c.toUpperCase()).slice(0, 28);
   return 'Bank';
 }
 
@@ -330,22 +358,155 @@ function parseKiwiRows(rows, fname) {
   return { transactions, warnings, bank: 'KiwiBank' };
 }
 
-// ---------- generic fallback ----------
-function parseGenericRows(rows, fname, bank) {
-  const transactions = [], warnings = [];
-  const dateAt = /(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})|(\d{1,2}\s[A-Za-z]{3}\s\d{4})/;
-  for (const row of rows) {
-    const dm = row.text.match(dateAt);
-    if (!dm) continue;
-    const date = parseDate(dm[0], true);
-    if (!date || typeof date !== 'string') continue;
-    const nums = row.text.match(/-?[\d,]+\.\d{2}/g);
-    if (!nums) continue;
-    const detail = row.text.replace(dm[0], '').replace(/-?[\d,]+\.\d{2}/g, '').replace(/\s+/g,' ').trim();
-    const amount = num(nums[nums.length - 1]);
-    if (amount === null) continue;
-    transactions.push({ bank, account: bank, date, description: detail, amount, sourceFile: fname });
+// ---------- generic engine (any bank) ----------
+// Strategy: reconstructed rows already align columns by x. We detect header columns
+// (debit/credit/amount/balance) by their x-centres, read money tokens with their x,
+// and decide the sign by running-balance reconciliation (falling back to Dr/Cr,
+// parentheses, trailing '-', or column position when no balance is available).
+const pad2 = (n) => String(n).padStart(2, '0');
+const nearestTok = (arr, x) => arr.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a));
+
+function parseMoney(str) {
+  const s = String(str);
+  const neg = /^\(/.test(s.trim()) || /\)\s*$/.test(s) || /\bDR\b/i.test(s) || /-\s*[\d($£€₹]/.test(s) || /\d\s*-\s*$/.test(s);
+  const pos = /\bCR\b/i.test(s);
+  const v = parseFloat(s.replace(/[^\d.]/g, ''));
+  if (isNaN(v)) return { mag: null, sign: null };
+  return { mag: Math.abs(v), sign: pos ? 1 : (neg ? -1 : null) };
+}
+
+function moneyTokens(row) {
+  const out = [];
+  for (const it of (row.items || [])) {
+    const s = it.str;
+    if (!/\d\.\d{2}(?!\d)/.test(s)) continue;                 // must look like money (….dd)
+    if (/\d[\/.\-]\d{1,2}[\/.\-]\d/.test(s)) continue;        // skip dates like 10.07.26
+    const p = parseMoney(s);
+    if (p.mag == null) continue;
+    out.push({ x: it.x + (it.w || 0) / 2, mag: p.mag, sign: p.sign });
   }
-  if (!transactions.length) warnings.push('PDF layout not recognised — no transactions parsed.');
-  return { transactions, warnings, bank };
+  return out;
+}
+
+function detectColumns(headerRow) {
+  const cols = { debit: null, credit: null, amount: null, balance: null };
+  for (const it of (headerRow.items || [])) {
+    const w = it.str.toLowerCase().trim(); const x = it.x + (it.w || 0) / 2;
+    if (/^bal|balance/.test(w)) cols.balance ??= x;
+    else if (/debit|withdraw|paid\s?out|money\s?out|^dr$|^out$/.test(w)) cols.debit ??= x;
+    else if (/credit|deposit|paid\s?in|money\s?in|^cr$|^in$/.test(w)) cols.credit ??= x;
+    else if (/amount|value/.test(w)) cols.amount ??= x;
+  }
+  return cols;
+}
+
+function firstDate(text) {
+  let m;
+  if ((m = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/))) return { raw: m[0], iso: `${m[1]}-${m[2]}-${m[3]}` };
+  if ((m = text.match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/))) {
+    const iso = parseDate(m[0], true);
+    return { raw: m[0], iso: typeof iso === 'string' ? iso : null };
+  }
+  if ((m = text.match(/\b(\d{1,2})[\s\-](?:of\s)?([A-Za-z]{3,9})\.?(?:[\s\-,]+(\d{2,4}))?\b/))) {
+    const mo = MONTHS[m[2].slice(0, 3).toLowerCase()];
+    if (mo) {
+      const d = +m[1];
+      if (m[3]) { let y = m[3]; if (y.length === 2) y = (+y > 70 ? '19' : '20') + y; return { raw: m[0], iso: `${y}-${pad2(mo)}-${pad2(d)}` }; }
+      return { raw: m[0], iso: null, mo, day: d };
+    }
+  }
+  if ((m = text.match(/\b([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{2,4})\b/))) {
+    const mo = MONTHS[m[1].slice(0, 3).toLowerCase()];
+    if (mo) { let y = m[3]; if (y.length === 2) y = (+y > 70 ? '19' : '20') + y; return { raw: m[0], iso: `${y}-${pad2(mo)}-${pad2(+m[2])}` }; }
+  }
+  return null;
+}
+
+function parseGenericRows(rows, fname, bank) {
+  const tx = [], warnings = [];
+
+  const headerRow = rows.find(r =>
+    /\bdate\b/i.test(r.text) &&
+    /(balance|amount|debit|credit|withdraw|deposit|paid\s?(in|out)|money\s?(in|out)|\bdr\b|\bcr\b|value)/i.test(r.text));
+  const cols = headerRow ? detectColumns(headerRow) : null;
+
+  // Seed running balance from an opening / brought-forward line.
+  let running = null;
+  for (const r of rows) {
+    if (/opening balance|balance brought forward|brought forward|balance b\/?f/i.test(r.text)) {
+      const m = r.text.match(/-?\(?[$£€₹]?\s?[\d,]+\.\d{2}\)?/);
+      if (m) { const p = parseMoney(m[0]); if (p.mag != null) { running = p.mag * (p.sign || 1); break; } }
+    }
+  }
+
+  // Fallback year for date formats that omit it.
+  const docYear = (() => {
+    for (const r of rows) { const m = r.text.match(/\b(20\d{2}|19\d{2})\b/); if (m) return +m[1]; }
+    const fm = (fname || '').match(/\b(20\d{2}|19\d{2})\b/); return fm ? +fm[1] : null;
+  })();
+
+  const start = headerRow ? rows.indexOf(headerRow) + 1 : 0;
+  for (let i = start; i < rows.length; i++) {
+    const row = rows[i], text = row.text;
+    if (/opening balance|brought forward|balance b\/?f/i.test(text)) {
+      const m = text.match(/-?\(?[$£€₹]?\s?[\d,]+\.\d{2}\)?/);
+      if (m) { const p = parseMoney(m[0]); if (p.mag != null) running = p.mag * (p.sign || 1); }
+      continue;
+    }
+    if (/closing balance|balance carried|balance c\/?f|^totals?\b|subtotal|statement period|page \d+\s*(of|\/)/i.test(text)) {
+      const m = text.match(/-?\(?[$£€₹]?\s?[\d,]+\.\d{2}\)?/);
+      if (m && /carried|c\/?f|closing/i.test(text)) { const p = parseMoney(m[0]); if (p.mag != null) running = p.mag * (p.sign || 1); }
+      continue;
+    }
+    const d = firstDate(text);
+    if (!d) continue;
+    const date = d.iso || (docYear && d.mo ? `${docYear}-${pad2(d.mo)}-${pad2(d.day)}` : null);
+    if (!date) continue;
+
+    const monies = moneyTokens(row);
+    if (!monies.length) continue;
+
+    let balTok = null, amtTok = null, colSign = null;
+    if (monies.length >= 2) {
+      balTok = (cols && cols.balance != null) ? nearestTok(monies, cols.balance)
+                                              : monies.reduce((a, b) => (b.x > a.x ? b : a));
+      const rest = monies.filter(m => m !== balTok);
+      if (cols && (cols.debit != null || cols.credit != null)) {
+        amtTok = rest[0];
+        const dd = cols.debit != null ? Math.abs(amtTok.x - cols.debit) : Infinity;
+        const cc = cols.credit != null ? Math.abs(amtTok.x - cols.credit) : Infinity;
+        colSign = dd <= cc ? -1 : 1;
+      } else amtTok = (cols && cols.amount != null) ? nearestTok(rest, cols.amount) : rest[rest.length - 1];
+    } else {
+      amtTok = monies[0];
+      if (cols && (cols.debit != null || cols.credit != null)) {
+        const dd = cols.debit != null ? Math.abs(amtTok.x - cols.debit) : Infinity;
+        const cc = cols.credit != null ? Math.abs(amtTok.x - cols.credit) : Infinity;
+        colSign = dd <= cc ? -1 : 1;
+      }
+    }
+
+    const amag = amtTok.mag;
+    const bal = balTok ? balTok.mag * (balTok.sign || 1) : null;
+    let amount;
+    if (bal != null && running != null) {
+      if (Math.abs(running - amag - bal) < 0.02) amount = -amag;
+      else if (Math.abs(running + amag - bal) < 0.02) amount = amag;
+      else amount = (amtTok.sign || colSign || -1) * amag;
+      running = bal;
+    } else {
+      amount = (amtTok.sign || colSign || -1) * amag;
+      if (bal != null) running = bal;
+    }
+    if (!isFinite(amount)) continue;
+
+    let desc = text.replace(d.raw, ' ')
+      .replace(/-?\(?[$£€₹]?\s?[\d,]+\.\d{2}\)?(\s?(?:CR|DR))?/gi, ' ')
+      .replace(/\s+/g, ' ').trim();
+
+    tx.push({ bank, account: bank, date, description: desc, amount, sourceFile: fname });
+  }
+
+  if (!tx.length) warnings.push('PDF layout not recognised — no transactions parsed. If the bank offers a CSV/Excel export, that imports most reliably.');
+  return { transactions: tx, warnings, bank };
 }
