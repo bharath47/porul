@@ -206,7 +206,7 @@ function guessBankName(text, fname) {
 // ---------- ANZ ----------
 function parseAnzRows(rows, fname) {
   const transactions = [], warnings = [];
-  let account = null, running = null, y1 = null, m1 = null, y2 = null, m2 = null;
+  let account = null, running = null, y1 = null, m1 = null, y2 = null, m2 = null, lastTx = null;
   const acctRe = /(\d{2}-\d{4}-\d{7}-\d{2})/;
   const periodRe = /(\d{1,2})\s([A-Za-z]{3})[a-z]*\s(\d{4}).{0,4}?-.{0,4}?(\d{1,2})\s([A-Za-z]{3})[a-z]*\s(\d{4})/;
   const txStart = /^(\d{1,2})\s?([A-Za-z]{3})[a-z]*\b/;
@@ -229,13 +229,20 @@ function parseAnzRows(rows, fname) {
     if (ob) { running = num(ob[1]); continue; }
     if (/Closing\s*balance|Totals?\s*at|Brought\s*forward/i.test(text)) continue;
 
+    // A card transaction's actual date is on the following "Orig date DD/MM/YYYY" line;
+    // use it in place of the posting date so filtering reflects the real transaction date.
+    const origLine = text.match(/Orig date (\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+    if (origLine && lastTx && !txStart.test(text)) {
+      lastTx.date = `${origLine[3]}-${origLine[2].padStart(2, '0')}-${origLine[1].padStart(2, '0')}`;
+    }
+
     const ts = text.match(txStart);
     if (!ts) continue;
     const mo = MONTHS[ts[2].toLowerCase()];
     if (!mo) continue;
     const year = yearFor(mo);
     if (!year) continue;
-    const date = `${year}-${String(mo).padStart(2,'0')}-${String(+ts[1]).padStart(2,'0')}`;
+    const date = `${year}-${String(mo).padStart(2, '0')}-${String(+ts[1]).padStart(2, '0')}`;
 
     const nums = text.match(/-?[\d,]+\.\d{2}/g) || [];
     if (!nums.length) continue;
@@ -264,8 +271,9 @@ function parseAnzRows(rows, fname) {
       if (running !== null) running += amount;
     }
     if (amount === null || isNaN(amount)) continue;
-    transactions.push({ bank: 'ANZ', account: account || 'ANZ', date,
-      description: (type ? type + ' ' : '') + detail, amount, sourceFile: fname });
+    lastTx = { bank: 'ANZ', account: account || 'ANZ', date,
+      description: (type ? type + ' ' : '') + detail, amount, sourceFile: fname };
+    transactions.push(lastTx);
   }
   if (!transactions.length) warnings.push('ANZ PDF: no transactions parsed — layout may differ. Review in Transactions.');
   return { transactions, warnings, bank: 'ANZ' };
