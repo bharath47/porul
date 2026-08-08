@@ -25,8 +25,11 @@ function ensureExclude() { if (!Array.isArray(state.settings.excludeCats)) state
 // Categories that actually appear in the (non-duplicate) imported data.
 function availableCategories() {
   const present = new Set(state.transactions.filter(t => !t.isDuplicate).map(t => t.category));
-  const ordered = state.categories.map(c => c.name).filter(n => present.has(n));
+  let ordered = state.categories.map(c => c.name).filter(n => present.has(n));
   for (const n of present) if (!ordered.includes(n)) ordered.push(n);
+  // Narrow to the selected parent category, if one is chosen.
+  const pc = state.filters.parentCat;
+  if (pc) { const pm = subParentMap(); ordered = ordered.filter(n => (pm.get(n) || 'Custom') === pc); }
   return ordered;
 }
 
@@ -124,8 +127,10 @@ function wireEvents() {
   $('#saveBtn2').addEventListener('click', persist);
   $('#resetFilters').addEventListener('click', resetFilters);
 
-  ['fltAccount','fltFrom','fltTo','fltType','fltParentCat'].forEach(id =>
+  ['fltAccount','fltFrom','fltTo','fltType'].forEach(id =>
     $('#' + id).addEventListener('change', () => { readFilters(); render(); }));
+  // Parent category also narrows the subcategory chips/dropdowns everywhere.
+  $('#fltParentCat').addEventListener('change', () => { readFilters(); refreshFilterOptions(); render(); });
   $('#fltBank').addEventListener('change', onBankChange);
   $('#catSelectAll').addEventListener('click', () => { state.settings.excludeCats = []; renderCatChips(); render(); });
   $('#catClear').addEventListener('click', () => { state.settings.excludeCats = [...availableCategories()]; renderCatChips(); render(); });
