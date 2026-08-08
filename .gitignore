@@ -1,0 +1,5 @@
+# never publish personal finance data
+porul-data.json
+fintide-data.json
+*.log
+.DS_Store

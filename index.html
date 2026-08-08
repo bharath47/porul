@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Porul &middot; Personal Finance</title>
+  <meta name="description" content="Private, client-side personal finance dashboard for bank statements." />
+  <link rel="icon" href="assets/logo.svg" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- Third-party libraries, vendored locally (client-side only, no CDN / no network) -->
+  <script defer src="vendor/chart.umd.min.js"></script>
+  <script defer src="vendor/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- ============ LOGIN GATE ============ -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>Porul</h1>
+          <p class="tagline">Your statements, understood.</p>
+        </div>
+      </div>
+      <div id="authBody">
+        <!-- populated by auth.js -->
+      </div>
+      <p class="auth-note">
+        100% private. Files are read and analysed only in your browser &mdash;
+        nothing is uploaded to any server.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand small">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div><h1>Porul</h1></div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard"><span class="ic">📊</span>Dashboard</button>
+        <button class="nav-item" data-view="transactions"><span class="ic">📋</span>Transactions</button>
+        <button class="nav-item" data-view="categories"><span class="ic">🏷️</span>Categorisation</button>
+        <button class="nav-item" data-view="import"><span class="ic">📥</span>Data Sources</button>
+        <button class="nav-item" data-view="settings"><span class="ic">⚙️</span>Settings</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div id="userBadge" class="user-badge"></div>
+        <button id="logoutBtn" class="btn-link">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- ===== Global filter bar ===== -->
+      <header class="filters" id="filterBar">
+        <div class="filter">
+          <label>Bank</label>
+          <select id="fltBank" class="multi" multiple></select>
+        </div>
+        <div class="filter">
+          <label>Account</label>
+          <select id="fltAccount" class="multi" multiple></select>
+        </div>
+        <div class="filter">
+          <label>Period</label>
+          <div class="date-stack">
+            <input type="month" id="fltFrom" aria-label="From month" />
+            <input type="month" id="fltTo" aria-label="To month" />
+          </div>
+        </div>
+        <div class="filter">
+          <label>Type</label>
+          <select id="fltType">
+            <option value="">All</option>
+            <option value="debit">Debit (out)</option>
+            <option value="credit">Credit (in)</option>
+          </select>
+        </div>
+        <div class="filter grow">
+          <label>Categories
+            <span class="filter-links">
+              <button type="button" class="link-btn" id="catSelectAll">Select all</button>
+              <span class="dot">·</span>
+              <button type="button" class="link-btn" id="catClear">Clear</button>
+            </span>
+          </label>
+          <div id="fltIncludeCats" class="chip-tray"></div>
+        </div>
+        <div class="filter-actions">
+          <button id="resetFilters" class="btn ghost">Reset</button>
+          <button id="saveBtn" class="btn primary" title="Save data back to source folder">💾 Save</button>
+        </div>
+      </header>
+
+      <!-- ===== Views ===== -->
+      <section id="view-dashboard" class="view">
+        <div class="kpi-row" id="kpiRow"></div>
+        <div class="grid">
+          <div class="card span2">
+            <div class="card-head"><h3>Spending over time</h3>
+              <div class="head-tools">
+                <span id="trendSub" class="muted"></span>
+                <div class="seg" id="trendGran">
+                  <button class="seg-btn active" data-g="month">Month</button>
+                  <button class="seg-btn" data-g="year">Year</button>
+                </div>
+              </div>
+            </div>
+            <div class="chart-box md"><canvas id="chartTrend"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>By category</h3></div>
+            <div class="chart-box"><canvas id="chartCategory"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Top merchants</h3></div>
+            <div class="chart-box"><canvas id="chartMerchants"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>By bank / account</h3></div>
+            <div class="chart-box"><canvas id="chartBank"></canvas></div>
+          </div>
+          <div class="card span2">
+            <div class="card-head"><h3>Income vs spending by month</h3></div>
+            <div class="chart-box md"><canvas id="chartCashflow"></canvas></div>
+          </div>
+          <div class="card span2">
+            <div class="card-head"><h3>Category breakdown</h3></div>
+            <div id="catTable" class="mini-table"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-transactions" class="view hidden">
+        <div class="kpi-row" id="txKpis"></div>
+        <div class="card">
+          <div class="card-head"><h3>Amount over time</h3>
+            <div class="seg" id="txGran">
+              <button class="seg-btn active" data-g="month">Month</button>
+              <button class="seg-btn" data-g="year">Year</button>
+            </div>
+          </div>
+          <div class="chart-box md"><canvas id="chartTxTime"></canvas></div>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="txSearch" placeholder="Search description, merchant, category…" />
+          <select id="txCatFilter"><option value="">All categories</option></select>
+          <label class="check"><input type="checkbox" id="txShowDupes" /> Show duplicates</label>
+          <span class="grow"></span>
+          <button id="exportCsv" class="btn ghost">Export CSV</button>
+        </div>
+        <div id="txTable" class="tx-table"></div>
+      </section>
+
+      <section id="view-categories" class="view hidden">
+        <div class="split">
+          <div class="card">
+            <div class="card-head"><h3>Needs your input</h3><span id="uncatCount" class="pill"></span></div>
+            <p class="muted">Assign a category to an uncategorised item — we'll optionally create a rule so similar ones are handled automatically.</p>
+            <div id="uncatList" class="uncat-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Category rules</h3></div>
+            <p class="muted">When a description <em>contains</em> a keyword, it maps to a category. First match wins.</p>
+            <div class="rule-add">
+              <input id="ruleKeyword" placeholder="keyword (e.g. WAITOMO)" />
+              <select id="ruleCategory"></select>
+              <button id="addRule" class="btn primary">Add</button>
+            </div>
+            <div id="ruleList" class="rule-list"></div>
+            <hr />
+            <div class="card-head"><h3>Categories</h3></div>
+            <div class="cat-add">
+              <input id="newCatName" placeholder="New category name" />
+              <input id="newCatGroup" placeholder="Group (optional)" />
+              <button id="addCat" class="btn ghost">Add category</button>
+            </div>
+            <div id="catChips" class="chip-tray"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-import" class="view hidden">
+        <div class="card">
+          <div class="card-head"><h3>Source folder</h3></div>
+          <p class="muted">
+            Pick a local folder — including a synced <strong>OneDrive</strong> or
+            <strong>Google&nbsp;Drive</strong> folder. We scan it for PDF, Excel and CSV
+            statements. A <code>fintide-data.json</code> file is written back into this folder
+            so your categories and settings persist.
+          </p>
+          <div class="source-actions">
+            <button id="pickFolder" class="btn primary">📁 Choose folder</button>
+            <button id="addFiles" class="btn ghost">＋ Add individual files</button>
+            <span id="sourceStatus" class="muted"></span>
+          </div>
+          <div id="fileList" class="file-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Import log</h3></div>
+          <div id="importLog" class="log"></div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view hidden">
+        <div class="card">
+          <div class="card-head"><h3>Appearance</h3></div>
+          <label class="row-toggle"><span>Dark mode</span><input type="checkbox" id="darkToggle" /></label>
+          <label class="row-toggle"><span>Currency symbol</span><input id="currencySym" maxlength="4" value="$" /></label>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Data</h3></div>
+          <div class="settings-actions">
+            <button id="saveBtn2" class="btn primary">💾 Save to folder</button>
+            <button id="exportJson" class="btn ghost">Export backup (JSON)</button>
+            <button id="importJson" class="btn ghost">Import backup</button>
+            <button id="wipeData" class="btn danger">Clear all data</button>
+          </div>
+          <p class="muted" id="dataStats"></p>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Security &amp; login</h3></div>
+          <div id="securityPanel"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="persistModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="brand" style="margin-bottom:14px">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div><h2 style="font-size:18px">Where should Porul keep your data?</h2></div>
+      </div>
+      <p class="muted">Your categories, rules and settings live in a small <code>porul-data.json</code> file. Choose where to store it.</p>
+      <div class="persist-options">
+        <button class="persist-opt" id="persistFolder">
+          <span class="po-ic">📁</span>
+          <span class="po-txt"><b>Local or cloud folder</b><small>Pick a folder — including a synced OneDrive or Google Drive folder. Read &amp; write.</small></span>
+        </button>
+        <button class="persist-opt" id="persistBrowser">
+          <span class="po-ic">💻</span>
+          <span class="po-txt"><b>This browser only</b><small>Stored privately on this device. No folder needed.</small></span>
+        </button>
+      </div>
+      <div class="persist-url">
+        <label>Have a cloud link? Paste a OneDrive / Google Drive direct URL to load your data (optional)</label>
+        <div class="url-row">
+          <input id="persistUrlInput" placeholder="https://…" />
+          <button class="btn ghost" id="persistUrlLoad">Load</button>
+        </div>
+        <small class="muted">Direct links are load-only. To save back to OneDrive/Google Drive, use the folder option on a synced folder.</small>
+      </div>
+      <button class="btn-link" id="persistSkip" style="color:var(--slate)">Decide later</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <input type="file" id="hiddenFileInput" multiple accept=".pdf,.csv,.xls,.xlsx" class="hidden" />
+  <input type="file" id="hiddenJsonInput" accept=".json" class="hidden" />
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
