@@ -14,7 +14,7 @@ const state = {
   rules: [...DEFAULT_RULES],
   manual: {},
   settings: { dark: false, currency: '$', excludeCats: null },
-  filters: { banks: [], accounts: [], from: '', to: '', type: '', group: '', parentCat: '', trendGran: 'month', txGran: 'month' },
+  filters: { banks: [], accounts: [], from: '', to: '', type: '', group: '', parentCat: '', sub: '', trendGran: 'month', txGran: 'month' },
   view: 'dashboard',
 };
 
@@ -130,7 +130,7 @@ function wireEvents() {
   $('#saveBtn2').addEventListener('click', persist);
   $('#resetFilters').addEventListener('click', resetFilters);
 
-  ['fltAccount','fltFrom','fltTo','fltType'].forEach(id =>
+  ['fltAccount','fltFrom','fltTo','fltType','fltSub'].forEach(id =>
     $('#' + id).addEventListener('change', () => { readFilters(); render(); }));
   // Parent category also narrows the subcategory chips/dropdowns everywhere.
   $('#fltParentCat').addEventListener('change', () => { readFilters(); refreshFilterOptions(); render(); });
@@ -269,6 +269,7 @@ function activeRows() {
     if (excl.has(t.category)) return false;
     if (gmap && (gmap.get(t.category) || 'Custom') !== f.group) return false;
     if (pmap && (pmap.get(t.category) || 'Custom') !== f.parentCat) return false;
+    if (f.sub && t.category !== f.sub) return false;
     if (f.type === 'debit' && t.amount >= 0) return false;
     if (f.type === 'credit' && t.amount < 0) return false;
     return true;
@@ -322,6 +323,12 @@ function refreshFilterOptions() {
   sel.innerHTML = '<option value="">All subcategories</option>' +
     availableCategories().map(n => `<option>${n}</option>`).join('');
   sel.value = cur;
+  // Global subcategory filter — same list, kept in sync with the group/category cascade.
+  const subs = availableCategories();
+  const fsel = $('#fltSub');
+  fsel.innerHTML = '<option value="">All subcategories</option>' + subs.map(n => `<option>${n}</option>`).join('');
+  if (subs.includes(state.filters.sub)) fsel.value = state.filters.sub;
+  else { fsel.value = ''; state.filters.sub = ''; }
 }
 
 function fillMulti(sel, options, selected) {
@@ -337,6 +344,7 @@ function readFilters() {
   state.filters.type = $('#fltType').value;
   state.filters.group = $('#fltGroup').value;
   state.filters.parentCat = $('#fltParentCat').value;
+  state.filters.sub = $('#fltSub').value;
 }
 
 // Selecting bank(s) narrows the account list to those banks.
@@ -355,9 +363,9 @@ function segClick(sel, e, cb) {
 }
 
 function resetFilters() {
-  state.filters = { banks: [], accounts: [], from: '', to: '', type: '', group: '', parentCat: '', trendGran: state.filters.trendGran, txGran: state.filters.txGran };
+  state.filters = { banks: [], accounts: [], from: '', to: '', type: '', group: '', parentCat: '', sub: '', trendGran: state.filters.trendGran, txGran: state.filters.txGran };
   state.settings.excludeCats = [...DEFAULT_EXCLUDE];
-  $('#fltFrom').value = ''; $('#fltTo').value = ''; $('#fltType').value = ''; $('#fltGroup').value = ''; $('#fltParentCat').value = '';
+  $('#fltFrom').value = ''; $('#fltTo').value = ''; $('#fltType').value = ''; $('#fltGroup').value = ''; $('#fltParentCat').value = ''; $('#fltSub').value = '';
   refreshFilterOptions(); render();
 }
 
@@ -419,6 +427,7 @@ function renderTransactions() {
     if (excl.has(t.category)) return false;
     if (gmap && (gmap.get(t.category) || 'Custom') !== f.group) return false;
     if (pmap && (pmap.get(t.category) || 'Custom') !== f.parentCat) return false;
+    if (f.sub && t.category !== f.sub) return false;
     if (f.type === 'debit' && t.amount >= 0) return false;
     if (f.type === 'credit' && t.amount < 0) return false;
     if (catF && t.category !== catF) return false;
