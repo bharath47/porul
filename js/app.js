@@ -18,8 +18,8 @@ const state = {
   view: 'dashboard',
 };
 
-// No categories are deselected by default (everything included).
-const DEFAULT_EXCLUDE = [];
+// Categories deselected by default (non-spend / internal movements).
+const DEFAULT_EXCLUDE = ['Mortgage Payments', 'Bank Deposit', 'Salary', 'Account-to-Account Transfers'];
 const allCatNames = () => state.categories.map(c => c.name);
 function ensureExclude() { if (!Array.isArray(state.settings.excludeCats)) state.settings.excludeCats = [...DEFAULT_EXCLUDE]; }
 // Categories that actually appear in the (non-duplicate) imported data.
@@ -111,6 +111,8 @@ function hydrate(data) {
   // On upgrade, drop the old default that deselected Interbank Transfers.
   if (outdated && state.settings.excludeCats.length === 1 && state.settings.excludeCats[0] === 'Interbank Transfers')
     state.settings.excludeCats = [];
+  // On upgrade, add the new default deselections while keeping any existing ones.
+  if (outdated) state.settings.excludeCats = [...new Set([...state.settings.excludeCats, ...DEFAULT_EXCLUDE])];
   delete state.settings.includeCats;
   setCurrency(state.settings.currency);
 }
@@ -283,9 +285,12 @@ function setTxSort(key) {
 }
 function sortTxRows(rows) {
   const s = txSort.dir === 'asc' ? 1 : -1;
+  const pm = txSort.key === 'parentCategory' ? subParentMap() : null;
   const val = (t) => txSort.key === 'amount' ? t.amount
     : txSort.key === 'bank' ? `${t.bank} ${t.account}`
-    : txSort.key === 'date' ? (t.date || '') : (t[txSort.key] || '');
+    : txSort.key === 'date' ? (t.date || '')
+    : txSort.key === 'parentCategory' ? (pm.get(t.category) || '')
+    : (t[txSort.key] || '');
   return rows.sort((a, b) => { const av = val(a), bv = val(b); return (typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv))) * s; });
 }
 
@@ -426,12 +431,13 @@ function renderTransactions() {
   renderPeriodChart('chartTxTime', rows, state.filters.txGran, (key) => filterByPeriod(key, state.filters.txGran));
 
   const shown = rows.slice(0, 600);
+  const parentOf = subParentMap();
   const table = el('table');
-  const cols = [['date', 'Date'], ['description', 'Description'], ['bank', 'Bank / Account'], ['category', 'Category'], ['amount', 'Amount']];
+  const cols = [['date', 'Date'], ['description', 'Description'], ['bank', 'Bank / Account'], ['parentCategory', 'Category'], ['category', 'Sub Category'], ['amount', 'Amount']];
   const thead = el('thead'); const htr = el('tr');
   for (const [key, label] of cols) {
     const arrow = txSort.key === key ? (txSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    htr.appendChild(el('th', { class: 'sortable' + (key === 'amount' ? ' num' : ''), onclick: () => setTxSort(key) }, label + arrow));
+    htr.appendChild(el('th', { class: 'sortable' + (key === 'amount' ? ' num' : '') + (key === 'date' ? ' col-date' : ''), onclick: () => setTxSort(key) }, label + arrow));
   }
   thead.appendChild(htr); table.appendChild(thead);
   const tbody = el('tbody');
@@ -442,12 +448,12 @@ function renderTransactions() {
     catSel.value = t.category;
     catSel.addEventListener('change', () => setManualCategory(t.description, catSel.value));
     tr.append(
-      el('td', {}, t.date || '—'),
+      el('td', { class: 'col-date' }, t.date || '—'),
       el('td', {},
         el('div', {}, (t.description || '—'), ' ',
-          el('span', { class: 'info-ic', title: `Source file: ${t.sourceFile || 'unknown'}` }, 'ⓘ')),
-        el('small', { class: 'muted' }, t.merchant || '')),
+          el('span', { class: 'info-ic', title: `Source file: ${t.sourceFile || 'unknown'}` }, 'ⓘ'))),
       el('td', {}, `${t.bank}`, el('br'), el('small', { class: 'muted' }, String(t.account))),
+      el('td', { class: 'cat-parent' }, parentOf.get(t.category) || '—'),
       el('td', {}, catSel),
       el('td', { class: 'num ' + (t.amount < 0 ? 'amt-out' : 'amt-in') }, money(t.amount, { sign: true })),
     );

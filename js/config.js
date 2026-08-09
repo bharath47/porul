@@ -48,7 +48,7 @@ export const TAXONOMY = {
   },
   'Transfers & System': {
     'Internal Transfers': ['Credit Card Payments', 'Account-to-Account Transfers'],
-    'Banking': ['Cash & ATM'],
+    'Banking': ['Cash & ATM', 'Bank Deposit'],
     'Uncategorized': ['Needs Manual Review', 'Other'],
   },
 };
@@ -82,6 +82,13 @@ export const CATEGORY_ALIASES = {
 
 // Ordered keyword → leaf-subcategory rules. First keyword found in the description wins.
 export const DEFAULT_RULES = [
+  // User-defined priority mappings (checked first; first keyword found wins).
+  { kw: 'LOAN DRAWDOWN', cat: 'Mortgage Payments' },
+  { kw: 'INWARD SOLUTIONS', cat: 'Account-to-Account Transfers' },
+  { kw: 'MICROSOFT NEW ZEALAN', cat: 'Salary' },
+  { kw: 'MATURITY', cat: 'Bank Deposit' },
+  { kw: ' SAL ', cat: 'Salary' },
+  { kw: 'DEPOSIT', cat: 'Bank Deposit' },
   // Extra-curriculars
   { kw: 'VIOLIN', cat: 'Music & Dance Lessons' },
   { kw: 'SINGING', cat: 'Music & Dance Lessons' },
@@ -249,4 +256,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
-export const RULES_VERSION = 6;
+export const RULES_VERSION = 7;
