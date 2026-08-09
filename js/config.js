@@ -245,6 +245,7 @@ export const DEFAULT_RULES = [
   { kw: 'CASH', cat: 'Cash & ATM' },
   { kw: 'SALARY', cat: 'Salary' },
   { kw: 'PAYROLL', cat: 'Salary' },
+  { kw: 'WAGE', cat: 'Salary' },
   { kw: 'WAGES', cat: 'Salary' },
   { kw: 'PAY - ', cat: 'Salary' },
   { kw: 'DIRECT CREDIT', cat: 'Other Income' },
@@ -257,4 +258,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
-export const RULES_VERSION = 9;
+export const RULES_VERSION = 10;
