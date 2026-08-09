@@ -125,6 +125,7 @@ export const DEFAULT_RULES = [
   { kw: 'UNCLE BILLS', cat: 'Specialty & Imported Foods' },
   { kw: 'UNCLE BILL', cat: 'Specialty & Imported Foods' },
   // Fuel / vehicle
+  { kw: 'SAVE FUEL', cat: 'Fuel / EV Charging' },
   { kw: 'WAITOMO', cat: 'Fuel / EV Charging' },
   { kw: 'BP CONNECT', cat: 'Fuel / EV Charging' },
   { kw: 'GULL', cat: 'Fuel / EV Charging' },
@@ -256,4 +257,4 @@ export const DEFAULT_RULES = [
 export const DATA_FILE = 'porul-data.json';
 export const LEGACY_DATA_FILES = ['fintide-data.json'];
 export const SCHEMA_VERSION = 1;
-export const RULES_VERSION = 7;
+export const RULES_VERSION = 8;
